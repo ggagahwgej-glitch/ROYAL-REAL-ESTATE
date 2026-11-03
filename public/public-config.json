@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "url": "",
+  "anonKey": "",
+  "publishedAt": null,
+  "note": "Shared public bootstrap configuration. Publishable/anon keys only. NEVER place a service-role key here."
+}
