@@ -60,7 +60,7 @@ supabase/                     schema.sql · storage.sql · owner-provisioning.sq
 public/
   brand/ sql/ images/         Static brand kit, SQL downloads, original photography
   public-config.json          Shared public bootstrap template
-tests/ scripts/               41 unit/security tests + live route smoke harness
+tests/ scripts/               48 unit/security tests + 39 live route/content smoke checks
 ```
 
 ### Security model
@@ -105,7 +105,7 @@ npm run dev          # development server (0.0.0.0)
 npm run build        # production build
 npm run start        # production server (0.0.0.0)
 npm run typecheck    # strict TypeScript check
-npm run test         # vitest — 41 tests
+npm run test         # vitest — 48 tests
 npm run smoke        # requires a running server; BASE_URL=http://localhost:3000
 ```
 
@@ -114,6 +114,8 @@ npm run smoke        # requires a running server; BASE_URL=http://localhost:3000
 Dynamic per-property metadata and Open Graph, canonical URLs, `RealEstateListing` JSON-LD,
 `sitemap.xml` (includes published listings), `robots.txt` disallowing `/admin` and `/api`,
 web manifest, local image optimization with next/image and lazy loading for owner uploads.
+Canonical origins are derived from the incoming request host, so no environment variable is
+needed for SEO (`NEXT_PUBLIC_SITE_URL` is an optional override).
 Admin routes carry `noindex, nofollow, nocache`.
 
 ## Honest scope notes
@@ -122,8 +124,15 @@ Admin routes carry `noindex, nofollow, nocache`.
   could not be executed here**. The application ships executable live diagnostics
   (`/admin/configuration → Run diagnostics`) and `supabase/rls-tests.sql` for that verification.
   See [`docs/TESTING.md`](docs/TESTING.md) for the complete manual checklist.
-* Property listings are never faked: with no backend they are replaced by a setup/empty state.
+* Property listings and client testimonials are never faked: with no backend they are replaced by
+  a setup/empty state. Testimonials are real, owner-published records in
+  `site_settings.testimonials` (Website settings → Testimonials); the homepage states that
+  references are shared in confidence until genuine quotes with written permission are published.
   The architectural photography and editorial brand copy are static marketing assets.
+* The first owner-verified publish binds the website to that Supabase project; afterwards the
+  project URL cannot be repointed from a browser session (only the publishable key can rotate).
+  Publish immediately after deployment. See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
+* Built on Next.js `15.5.28` (patched for CVE-2025-66478).
 * `data/public-config.json` is a runtime file on writable Node/VPS deployments. On read-only
   serverless hosting the API returns a downloadable artifact and explicit redeploy instructions
   rather than a false success.

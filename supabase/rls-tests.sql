@@ -106,4 +106,6 @@ end $$;
 
 -- ---------- D. OWNER VERIFICATION (informational) ----------
 select id, email, is_owner from public.profiles where is_owner = true;
-raise notice 'Manual check: confirm exactly the intended owner account(s) are listed above.';
+do $$ begin
+  raise notice 'Manual check: confirm exactly the intended owner account(s) are listed above.';
+end $$;

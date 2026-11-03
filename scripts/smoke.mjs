@@ -69,6 +69,20 @@ for (const [path, expectedStatus, expectedText] of ROUTES) {
   } catch (e) { check(path, false, e.message); }
 }
 
+console.log(`\nHomepage content contract\n${'-'.repeat(64)}`);
+try {
+  const home = await request('/');
+  const html = typeof home.body === 'string' ? home.body : '';
+  const h1 = /<h1[^>]*>([\s\S]*?)<\/h1>/.exec(html)?.[1] ?? '';
+  const h1Text = h1.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  check('Exact hero heading', h1Text === 'Where Exceptional Living Meets Timeless Elegance.', h1Text);
+  check('Exact hero supporting text', html.includes('Discover extraordinary residences, prestigious addresses and exceptional real estate opportunities.'));
+  check('Exact primary button label', html.includes('Explore Properties.'));
+  check('Exact secondary button label', html.includes('Discover Our Collection.'));
+  check('No fabricated client testimonials', !['A. R. Mehta', 'Eleanor Vance', 'S. Kapoor'].some(n => html.includes(n)));
+  check('Honest testimonial empty state is server-rendered', html.includes('References are shared in confidence.'));
+} catch (e) { check('Homepage content contract', false, e.message); }
+
 console.log(`\nConfiguration endpoint tests\n${'-'.repeat(64)}`);
 try {
   const get = await request('/api/public-config');

@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowUpRight, ArrowRight, Compass, Gem, ShieldCheck, Landmark, KeyRound, Quote, Check } from 'lucide-react';
+import { ArrowUpRight, ArrowRight, Compass, Gem, ShieldCheck, Landmark, KeyRound, Check } from 'lucide-react';
 import { Hero } from '@/components/site/Hero';
 import { SearchBar } from '@/components/site/SearchBar';
 import { PropertyCollection } from '@/components/site/PropertyCollection';
+import { Testimonials } from '@/components/site/Testimonials';
 import { Reveal } from '@/components/ui/Reveal';
-import { CATEGORIES, DESTINATIONS, TESTIMONIALS, WHY_US, BRAND_PILLARS } from '@/data/marketing';
+import { CATEGORIES, DESTINATIONS, WHY_US, BRAND_PILLARS } from '@/data/marketing';
 
 export const metadata: Metadata = {
   title: 'Where Exceptional Living Meets Timeless Elegance',
@@ -167,25 +168,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 10 — Testimonials */}
-      <section className="section" id="testimonials">
-        <div className="container">
-          <div className="section-head"><Reveal><p className="eyebrow">In their words</p><h2 className="h2 mt-16">Relationships that endure.</h2></Reveal>
-            <p className="small muted max-w-600">Selected correspondence from private clients. Published with permission; names abbreviated at their request.</p></div>
-          <div className="grid grid-3">
-            {TESTIMONIALS.map((t, i) => (
-              <Reveal key={t.name} delay={(i + 1) as 0 | 1 | 2 | 3}>
-                <div className="testimonial" style={{ height: '100%' }}>
-                  <span className="quote-mark">“</span>
-                  <Quote size={18} className="gold mb-16" />
-                  <p>{t.quote}</p>
-                  <div className="testimonial-foot"><div className="avatar">{t.initials}</div><div><p className="small" style={{ color: 'var(--ivory)', fontWeight: 600 }}>{t.name}</p><p className="tiny muted">{t.role}</p></div></div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* 10 — Genuine, owner-published testimonials */}
+      <Testimonials />
 
       {/* 11 — Premium CTA */}
       <section className="cta-band">

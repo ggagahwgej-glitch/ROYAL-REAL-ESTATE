@@ -118,9 +118,16 @@ export async function getSiteSettings(client: Client): Promise<QueryResult<SiteS
     const { data, error } = await client.from('site_settings').select('*').eq('id', 1).maybeSingle();
     // Still render with brand defaults, but never hide the database failure.
     if (error) return { data: { ...DEFAULT_SETTINGS }, error: `Public website settings could not be read (${error.message}). The application schema may not be installed yet.` };
-    return ok({ ...DEFAULT_SETTINGS, ...(data as Partial<SiteSettings> ?? {}),
-      social: { ...DEFAULT_SETTINGS.social, ...((data as SiteSettings)?.social ?? {}) },
-      theme: { ...DEFAULT_SETTINGS.theme, ...((data as SiteSettings)?.theme ?? {}) } });
+    const row = (data as Partial<SiteSettings> | null) ?? {};
+    const rawTestimonials = row.testimonials;
+    const testimonials = Array.isArray(rawTestimonials)
+      ? rawTestimonials.filter((t): t is SiteSettings['testimonials'][number] =>
+          !!t && typeof t.quote === 'string' && t.quote.trim().length > 0 && typeof t.name === 'string' && t.name.trim().length > 0)
+      : [];
+    return ok({ ...DEFAULT_SETTINGS, ...row,
+      testimonials,
+      social: { ...DEFAULT_SETTINGS.social, ...(row.social ?? {}) },
+      theme: { ...DEFAULT_SETTINGS.theme, ...(row.theme ?? {}) } });
   } catch (e) { return { data: { ...DEFAULT_SETTINGS }, error: `Website settings could not be loaded: ${errorMessage(e)}` }; }
 }
 

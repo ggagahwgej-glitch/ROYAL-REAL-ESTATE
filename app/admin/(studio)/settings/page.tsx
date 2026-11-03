@@ -1,13 +1,13 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Save, UploadCloud, RefreshCw, Globe, Palette, Image as ImageIcon, Contact, Share2, Eye } from 'lucide-react';
+import { Save, UploadCloud, RefreshCw, Globe, Palette, Image as ImageIcon, Contact, Share2, Eye, Quote, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import { Brand } from '@/components/brand/Brand';
 import { Notice } from '@/components/ui/UI';
 import { useOwner } from '@/lib/hooks/useOwner';
 import { useSiteSettings } from '@/lib/hooks/useSiteData';
 import { saveSiteSettings } from '@/lib/supabase/queries';
 import { uploadBrandingAsset } from '@/lib/supabase/storage';
-import type { SiteSettings } from '@/lib/types';
+import type { SiteSettings, Testimonial } from '@/lib/types';
 
 export default function AdminSettingsPage() {
   const owner = useOwner();
@@ -17,10 +17,11 @@ export default function AdminSettingsPage() {
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
-  const [tab, setTab] = useState<'branding' | 'content' | 'contact' | 'seo'>('branding');
+  const [tab, setTab] = useState<'branding' | 'content' | 'contact' | 'testimonials' | 'seo'>('branding');
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => { setForm(settings); setSocial(settings.social ?? {}); }, [settings]);
+  const quotes = form.testimonials ?? [];
   const set = <K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) => setForm(f => ({ ...f, [key]: value }));
 
   const upload = async (kind: 'logo_url' | 'favicon_url' | 'hero_image', file: File) => {
@@ -35,10 +36,12 @@ export default function AdminSettingsPage() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setFeedback(null);
-    if (!form.business_name?.trim()) { setFeedback({ tone: 'error', text: 'Business name is required.' }); return; }
+    if (!form.business_name?.trim()) { setFeedback({ tone: 'error', text: 'Business name is required.' }); setTab('branding'); return; }
+    if (quotes.some(t => !t.quote?.trim() || !t.name?.trim())) { setFeedback({ tone: 'error', text: 'Every published testimonial needs both a quote and a client name. Remove incomplete entries before saving.' }); setTab('testimonials'); return; }
     if (!owner.client) { setFeedback({ tone: 'error', text: 'No authenticated owner session.' }); return; }
     setBusy(true);
-    const payload: Partial<SiteSettings> = { ...form, social: { ...social } };
+    const payload: Partial<SiteSettings> = { ...form, social: { ...social },
+      testimonials: quotes.map(t => ({ quote: t.quote.trim(), name: t.name.trim(), role: (t.role ?? '').trim(), initials: (t.initials ?? '').trim() })) };
     const res = await saveSiteSettings(owner.client, payload);
     setBusy(false);
     if (res.error) { setFeedback({ tone: 'error', text: `Settings could not be saved: ${res.error}` }); return; }
@@ -83,7 +86,7 @@ export default function AdminSettingsPage() {
       </div>
 
       <div className="tabs">
-        {([['branding', 'Branding', Palette], ['content', 'Hero & content', ImageIcon], ['contact', 'Contact & social', Contact], ['seo', 'SEO & footer', Globe]] as const).map(([id, label, Icon]) =>
+        {([['branding', 'Branding', Palette], ['content', 'Hero & content', ImageIcon], ['contact', 'Contact & social', Contact], ['testimonials', 'Testimonials', Quote], ['seo', 'SEO & footer', Globe]] as const).map(([id, label, Icon]) =>
           <button type="button" key={id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}><Icon size={14} style={{ verticalAlign: 'middle', marginRight: 8 }} />{label}</button>)}
       </div>
 
@@ -126,6 +129,32 @@ export default function AdminSettingsPage() {
           <div className="field"><label className="label" htmlFor="s-addr">Office address</label><input id="s-addr" className="input" value={form.address ?? ''} onChange={e => set('address', e.target.value)} /></div>
           {['instagram', 'linkedin', 'facebook', 'youtube'].map(k => <div className="field" key={k}><label className="label" htmlFor={`s-${k}`}>{k.charAt(0).toUpperCase() + k.slice(1)} URL</label>
             <input id={`s-${k}`} className="input" value={social[k] ?? ''} onChange={e => setSocial({ ...social, [k]: e.target.value })} placeholder="https://" /></div>)}
+        </div>
+      </div>}
+
+      {tab === 'testimonials' && <div className="admin-card">
+        <div className="admin-card-head"><h3 className="h3">Client testimonials</h3><span className="badge badge-gold">Public</span></div>
+        <Notice tone="warning">Only publish real client quotes for which you hold written permission. Never invent names, roles or endorsements. The public homepage shows an honest empty state until you publish genuine references here.</Notice>
+        <div className="flex between center gap-16 wrap mt-24">
+          <p className="small muted">{quotes.length === 0 ? 'No testimonials published.' : `${quotes.length} published ${quotes.length === 1 ? 'testimonial' : 'testimonials'}.`}</p>
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => set('testimonials', [...quotes, { quote: '', name: '', role: '', initials: '' }])}><Plus size={14} /> Add testimonial</button>
+        </div>
+        {quotes.length === 0 ? <div className="empty-state mt-24"><Quote size={22} className="gold" /><p className="small muted mt-16">No client references are published. The homepage will state that references are shared in confidence.</p></div> : null}
+        <div className="grid gap-16 mt-24">
+          {quotes.map((t, i) => <div className="admin-card" key={i} style={{ padding: 18 }}>
+            <div className="flex between center gap-12 wrap mb-16"><p className="eyebrow no-line">Reference {String(i + 1).padStart(2, '0')}</p>
+              <div className="flex gap-8">
+                <button type="button" className="btn btn-ghost btn-sm" disabled={i === 0} aria-label="Move up" onClick={() => { const next = [...quotes]; [next[i - 1], next[i]] = [next[i], next[i - 1]]; set('testimonials', next); }}><ArrowUp size={14} /></button>
+                <button type="button" className="btn btn-ghost btn-sm" disabled={i === quotes.length - 1} aria-label="Move down" onClick={() => { const next = [...quotes]; [next[i + 1], next[i]] = [next[i], next[i + 1]]; set('testimonials', next); }}><ArrowDown size={14} /></button>
+                <button type="button" className="btn btn-ghost btn-sm" aria-label="Remove" onClick={() => set('testimonials', quotes.filter((_, j) => j !== i))}><Trash2 size={14} /></button>
+              </div></div>
+            <div className="form-grid">
+              <div className="field span-2"><label className="label">Client quote *</label><textarea className="textarea" value={t.quote} onChange={e => set('testimonials', quotes.map((q, j) => j === i ? { ...q, quote: e.target.value } : q))} placeholder="The client's own words" /></div>
+              <div className="field"><label className="label">Client name *</label><input className="input" value={t.name} onChange={e => set('testimonials', quotes.map((q, j) => j === i ? { ...q, name: e.target.value } : q))} placeholder="Name as permitted by the client" /></div>
+              <div className="field"><label className="label">Role / location</label><input className="input" value={t.role ?? ''} onChange={e => set('testimonials', quotes.map((q, j) => j === i ? { ...q, role: e.target.value } : q))} placeholder="Private Client · Guwahati" /></div>
+              <div className="field"><label className="label">Initials (optional)</label><input className="input" maxLength={3} value={t.initials ?? ''} onChange={e => set('testimonials', quotes.map((q, j) => j === i ? { ...q, initials: e.target.value } : q))} placeholder="Auto-generated if blank" /></div>
+            </div>
+          </div>)}
         </div>
       </div>}
 

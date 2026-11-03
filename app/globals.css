@@ -482,7 +482,7 @@ html[data-density="compact"] .section{padding:clamp(48px,6vw,84px) 0}
 html[data-density="compact"] .property-body{padding:16px 18px 18px;gap:8px}
 html[data-density="compact"] .card{padding:20px}
 html[data-contrast="high"]{--muted:#D2D6DD;--silver:#D8DBE1}
-html[data-contrast="high"] .muted,.html[data-contrast="high"] .small.muted{color:#D2D6DD}
+html[data-contrast="high"] .muted, html[data-contrast="high"] .small.muted, html[data-contrast="high"] .tiny.muted{color:#D2D6DD}
 html[data-reduced-motion="true"] *,html[data-reduced-motion="true"] *::before,html[data-reduced-motion="true"] *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
 html[data-reduced-motion="true"] .reveal{opacity:1;transform:none}
 .admin-duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start}

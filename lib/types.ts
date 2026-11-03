@@ -85,6 +85,13 @@ export interface Inquiry {
   updated_at: string;
 }
 
+export interface Testimonial {
+  quote: string;
+  name: string;
+  role: string;
+  initials?: string;
+}
+
 export interface SiteSettings {
   id: number;
   business_name: string;
@@ -103,6 +110,7 @@ export interface SiteSettings {
   footer_note: string | null;
   seo_title: string | null;
   seo_description: string | null;
+  testimonials: Testimonial[];
   theme: Record<string, string>;
   updated_at: string;
 }

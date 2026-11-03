@@ -11,9 +11,11 @@ export function Hero() {
   const { settings } = useSiteSettings();
   const heading = settings.hero_heading ?? DEFAULT_SETTINGS.hero_heading!;
   const sub = settings.hero_subheading ?? DEFAULT_SETTINGS.hero_subheading!;
-  const parts = heading.split(/\s+Meets\s+/i);
-  const first = parts.length > 1 ? `${parts[0]} Meets` : heading.split('.')[0];
-  const second = parts.length > 1 ? parts[1].replace(/\.$/, '') : '';
+  // Preserve the owner's wording verbatim. Only split at the word "Meets" for
+  // the two-tone typographic treatment; the final period is never stripped.
+  const match = /^(.*?\bMeets\b)\s+(.+)$/i.exec(heading);
+  const first = match ? match[1] : heading;
+  const second = match ? match[2] : '';
 
   return (
     <section className="hero">
@@ -25,12 +27,12 @@ export function Hero() {
         <div className="container hero-inner">
           <p className="eyebrow" style={{ animation: 'fadeIn 1s ease both' }}>Imperial Royal · Private Residences</p>
           <h1 style={{ animation: 'fadeIn 1.1s .1s ease both' }}>
-            {first}<span className="accent">{second || 'Timeless Elegance.'}</span>
+            {first}{second ? <> <span className="accent">{second}</span></> : null}
           </h1>
           <p className="hero-lead" style={{ animation: 'fadeIn 1.2s .2s ease both' }}>{sub}</p>
           <div className="hero-buttons" style={{ animation: 'fadeIn 1.3s .3s ease both' }}>
-            <Link href="/properties" className="btn btn-gold btn-lg">Explore Properties <ArrowUpRight size={17} /></Link>
-            <Link href="/categories" className="btn btn-outline btn-lg">Discover Our Collection <Compass size={17} /></Link>
+            <Link href="/properties" className="btn btn-gold btn-lg">Explore Properties. <ArrowUpRight size={17} /></Link>
+            <Link href="/categories" className="btn btn-outline btn-lg">Discover Our Collection. <Compass size={17} /></Link>
           </div>
           <div className="stat-row" style={{ maxWidth: 620, animation: 'fadeIn 1.4s .4s ease both' }}>
             <div><p className="stat-big">25+</p><p className="stat-label">Years of stewardship</p></div>

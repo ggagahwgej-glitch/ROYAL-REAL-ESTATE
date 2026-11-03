@@ -6,8 +6,8 @@
 |---|---|
 | `npm run typecheck` | TypeScript strict check across all app, lib and component code |
 | `npm run build` | Production build of all 24 routes, metadata routes, sitemap, robots, manifest |
-| `npm run test` | 41 unit + static security assertions (configuration validation, key-role rejection, filtering, pagination, formatting, RLS schema assertions, no service-role key, no PIN system) |
-| `npm run smoke` | All routes return expected status/content; configuration endpoint rejects secret keys and unauthenticated publishes; robots/sitemap/manifest/favicon present |
+| `npm run test` | 48 unit + static security assertions (configuration validation, key-role rejection, browser config persistence/import/export, exact hero copy, genuine-testimonial integrity, filtering, pagination, formatting, RLS schema assertions, no service-role key, no PIN system) |
+| `npm run smoke` | 39 checks: all routes, exact hero copy/button labels, no fabricated testimonials, honest empty state, configuration endpoint rejects secret keys and unauthenticated publishes; robots/sitemap/manifest/favicon present |
 
 ## Live, project-dependent tests (require a real Supabase project)
 
@@ -33,6 +33,15 @@ provides **executable** tests instead of claims:
      appears in bundles, localStorage, `public-config.json` or network configuration payloads.
    - **Responsive**: check mobile (360/390px), tablet (768px), laptop (1280px) and large (1920px)
      widths for both the public site and the Owner Studio; verify no horizontal overflow.
+
+## Not yet verified
+
+No browser automation runtime (Chromium / Playwright) is available in this sandbox, so **visual
+rendering, hydrated form interaction and device-width layout checks were not executed**. No real
+Supabase project URL or key was supplied, so no live Auth, RLS, database, Storage upload, inquiry,
+config persistence across visitors or SQL Editor test could be run. Route smoke checks verify HTTP
+responses and server-rendered markup; they do not prove hydrated client behavior. The manual
+checklist above and the in-app diagnostics are the remaining acceptance tests.
 
 ## Setup state
 

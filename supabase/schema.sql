@@ -182,9 +182,12 @@ create table if not exists public.site_settings (
   footer_note text,
   seo_title text,
   seo_description text,
+  testimonials jsonb not null default '[]'::jsonb,
   theme jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
+alter table public.site_settings add column if not exists testimonials jsonb not null default '[]'::jsonb;
+comment on column public.site_settings.testimonials is 'Real client quotes only. Enter in Owner Studio > Website settings > Testimonials with the client''s written permission.';
 insert into public.site_settings (id, business_name) values (1, 'Imperial Royal') on conflict (id) do nothing;
 drop trigger if exists site_settings_touch on public.site_settings;
 create trigger site_settings_touch before update on public.site_settings

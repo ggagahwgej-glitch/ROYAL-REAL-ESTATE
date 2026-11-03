@@ -94,6 +94,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   footer_note: 'Imperial Royal Real Estate. Crafted for a legacy.',
   seo_title: 'Imperial Royal | Extraordinary Residences & Prestigious Addresses',
   seo_description: 'Discover an exceptional collection of luxury residences, estates and penthouses. A private, discreet real estate experience.',
+  testimonials: [],
   theme: { accent: '#C6A45A', density: 'comfortable' },
   updated_at: '',
 };
