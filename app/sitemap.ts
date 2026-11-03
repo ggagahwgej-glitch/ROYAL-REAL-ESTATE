@@ -17,7 +17,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (error || !data) return staticRoutes;
     return [...staticRoutes, ...data.map(p => ({
       url: `${BASE}/properties/${p.slug}`,
-      lastModified: new Date(String(p.updated_at ?? Date.now())),
+      lastModified: p.updated_at ? new Date(String(p.updated_at)) : new Date(),
       changeFrequency: 'weekly' as const,
       priority: 0.8,
     }))];

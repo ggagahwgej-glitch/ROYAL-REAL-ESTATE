@@ -19,21 +19,46 @@ export const MAX_BRANDING_BYTES = 5 * 1024 * 1024;
 
 export interface FileValidation { ok: boolean; error?: string; kind?: 'image' | 'video' }
 
+const EXT_TO_MIME: Record<string, string> = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+  avif: 'image/avif', gif: 'image/gif', svg: 'image/svg+xml',
+  mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+  heic: 'image/heic', heif: 'image/heif',
+};
+
+/**
+ * Some Android browsers, camera roll pickers and drag/drop sources deliver a
+ * File with an EMPTY `type`. Derive it from the extension so uploads still
+ * work, and so the Storage bucket MIME allowlist receives a valid content type.
+ */
+export function mediaMimeType(file: File): string {
+  const declared = (file.type ?? '').trim().toLowerCase();
+  if (declared) return declared;
+  const ext = (file.name.split('.').pop() ?? '').toLowerCase();
+  return EXT_TO_MIME[ext] ?? '';
+}
+
 export function validateMediaFile(file: File): FileValidation {
   if (!file.size) return { ok: false, error: `${file.name} is empty.` };
-  if (IMAGE_TYPES.includes(file.type)) {
+  const mime = mediaMimeType(file);
+  if (/^image\/(heic|heif)/.test(mime)) {
+    return { ok: false, error: `${file.name} is a HEIC/HEIF photo, which browsers cannot display. Export it as JPG or PNG and upload again.` };
+  }
+  if (IMAGE_TYPES.includes(mime)) {
     if (file.size > MAX_IMAGE_BYTES) return { ok: false, error: `${file.name} exceeds the 12 MB image limit.` };
     return { ok: true, kind: 'image' };
   }
-  if (VIDEO_TYPES.includes(file.type)) {
+  if (VIDEO_TYPES.includes(mime)) {
     if (file.size > MAX_VIDEO_BYTES) return { ok: false, error: `${file.name} exceeds the 120 MB video limit.` };
     return { ok: true, kind: 'video' };
   }
-  return { ok: false, error: `${file.name} has an unsupported type (${file.type || 'unknown'}). Use JPG, PNG, WebP, AVIF, MP4 or WebM.` };
+  return { ok: false, error: `${file.name} has an unsupported type (${mime || 'unknown'}). Use JPG, PNG, WebP, AVIF, GIF, MP4 or WebM.` };
 }
 
 export function validateBrandingFile(file: File): FileValidation {
-  if (!BRANDING_TYPES.includes(file.type)) return { ok: false, error: 'Use JPG, PNG, WebP, AVIF or SVG.' };
+  if (!file.size) return { ok: false, error: 'The selected file is empty.' };
+  const mime = mediaMimeType(file);
+  if (!BRANDING_TYPES.includes(mime)) return { ok: false, error: 'Use JPG, PNG, WebP, AVIF or SVG.' };
   if (file.size > MAX_BRANDING_BYTES) return { ok: false, error: 'Branding assets must be under 5 MB.' };
   return { ok: true, kind: 'image' };
 }
@@ -41,7 +66,7 @@ export function validateBrandingFile(file: File): FileValidation {
 function extension(file: File): string {
   const fromName = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '');
   if (fromName && fromName.length <= 5) return fromName;
-  const subtype = file.type.split('/')[1]?.replace('svg+xml', 'svg').replace('jpeg', 'jpg');
+  const subtype = mediaMimeType(file).split('/')[1]?.replace('svg+xml', 'svg').replace('jpeg', 'jpg');
   return subtype || 'bin';
 }
 
@@ -81,8 +106,9 @@ export async function uploadPropertyMedia(
       const kind = validations[i].kind!;
       const path = `${propertyId}/${crypto.randomUUID()}.${extension(file)}`;
       onProgress?.({ completed: i, total: files.length, currentFile: file.name });
+      const mime = mediaMimeType(file);
       const { error } = await client.storage.from(BUCKETS.propertyMedia).upload(path, file, {
-        cacheControl: '3600', contentType: file.type, upsert: false,
+        cacheControl: '3600', contentType: mime, upsert: false,
       });
       if (error) throw new Error(`Upload failed for ${file.name}: ${error.message}`);
       uploadedPaths.push(path);
@@ -94,7 +120,7 @@ export async function uploadPropertyMedia(
         position: position++,
         is_cover: false,
         alt_text: file.name.replace(/\.[^.]+$/, ''),
-        mime_type: file.type,
+        mime_type: mime,
         file_size: file.size,
       });
     }
@@ -104,19 +130,29 @@ export async function uploadPropertyMedia(
     onProgress?.({ completed: files.length, total: files.length, currentFile: 'Complete' });
     return ok((data ?? []) as PropertyMedia[]);
   } catch (e) {
+    let rollback = '';
     if (uploadedPaths.length) {
-      try { await client.storage.from(BUCKETS.propertyMedia).remove(uploadedPaths); } catch { /* report primary error */ }
+      try {
+        const { error: cleanupError } = await client.storage.from(BUCKETS.propertyMedia).remove(uploadedPaths);
+        if (cleanupError) rollback = ` Automatic cleanup also failed (${cleanupError.message}); remove these objects manually: ${uploadedPaths.join(', ')}.`;
+      } catch { rollback = ' Automatic cleanup could not be completed; check the property-media bucket for orphaned objects.'; }
     }
-    return fail(e);
+    return { data: null, error: `${errorMessage(e)}${rollback}` };
   }
 }
 
 export async function deletePropertyMedia(client: SupabaseClient, media: PropertyMedia): Promise<QueryResult<null>> {
   try {
-    const { error: storageError } = await client.storage.from(BUCKETS.propertyMedia).remove([media.storage_path]);
-    if (storageError) return fail(new Error(`Could not remove the stored object: ${storageError.message}`));
+    // Delete the DATABASE row first. If that fails (RLS/expired session) the
+    // stored object is left intact, so the gallery never points at a missing
+    // file. Cleanup failure after a successful delete is reported as a warning.
     const { error } = await client.from('property_media').delete().eq('id', media.id);
-    if (error) return fail(new Error(`Object removed but the media record could not be deleted: ${error.message}`));
+    if (error) return fail(new Error(`The media record could not be deleted: ${error.message}`));
+    const { error: storageError } = await client.storage.from(BUCKETS.propertyMedia).remove([media.storage_path]);
+    if (storageError) {
+      return { data: null, error: null,
+        warning: `The media record was removed, but the stored object could not be deleted (${storageError.message}). Delete ${media.storage_path} from the property-media bucket manually.` };
+    }
     return ok(null);
   } catch (e) { return fail(e); }
 }
@@ -156,22 +192,24 @@ export async function replaceMedia(client: SupabaseClient, media: PropertyMedia,
   if (validation.kind !== media.kind) return fail(new Error('Replacement must be the same media type (image or video).'));
   try {
     const path = `${media.property_id}/${crypto.randomUUID()}.${extension(file)}`;
+    const mime = mediaMimeType(file);
     const { error: uploadError } = await client.storage.from(BUCKETS.propertyMedia).upload(path, file, {
-      cacheControl: '3600', contentType: file.type, upsert: false,
+      cacheControl: '3600', contentType: mime, upsert: false,
     });
     if (uploadError) return fail(new Error(`Replacement upload failed: ${uploadError.message}`));
     const { data, error } = await client.from('property_media').update({
       storage_path: path,
       public_url: publicUrl(client, path),
-      mime_type: file.type,
+      mime_type: mime,
       file_size: file.size,
     }).eq('id', media.id).select('*').single();
     if (error) {
       await client.storage.from(BUCKETS.propertyMedia).remove([path]);
       return fail(new Error(`Replacement uploaded but the record could not be updated: ${error.message}`));
     }
-    await client.storage.from(BUCKETS.propertyMedia).remove([media.storage_path]);
-    return ok(data as PropertyMedia);
+    const { error: cleanupError } = await client.storage.from(BUCKETS.propertyMedia).remove([media.storage_path]);
+    return { data: data as PropertyMedia, error: null,
+      warning: cleanupError ? `The replacement is live, but the old object could not be removed (${cleanupError.message}). Delete ${media.storage_path} from the property-media bucket manually.` : undefined };
   } catch (e) { return fail(e); }
 }
 
@@ -181,7 +219,7 @@ export async function uploadBrandingAsset(client: SupabaseClient, file: File, fo
   try {
     const path = `${folder}/${crypto.randomUUID()}.${extension(file)}`;
     const { error } = await client.storage.from(BUCKETS.branding).upload(path, file, {
-      cacheControl: '3600', contentType: file.type, upsert: false,
+      cacheControl: '3600', contentType: mediaMimeType(file), upsert: false,
     });
     if (error) return fail(new Error(`Branding upload failed: ${error.message}`));
     const { data } = client.storage.from(BUCKETS.branding).getPublicUrl(path);
@@ -193,7 +231,7 @@ export async function uploadPrivateAsset(client: SupabaseClient, file: File): Pr
   try {
     if (file.size > 25 * 1024 * 1024) return fail(new Error('Private assets must be under 25 MB.'));
     const path = `private/${crypto.randomUUID()}.${extension(file)}`;
-    const { error } = await client.storage.from(BUCKETS.private).upload(path, file, { upsert: false, contentType: file.type });
+    const { error } = await client.storage.from(BUCKETS.private).upload(path, file, { upsert: false, contentType: mediaMimeType(file) });
     if (error) return fail(new Error(`Private upload failed: ${error.message}`));
     return ok({ path });
   } catch (e) { return fail(e); }

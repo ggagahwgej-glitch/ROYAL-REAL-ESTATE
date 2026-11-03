@@ -14,6 +14,7 @@ import { getSupabaseClient } from '@/lib/supabase/factory';
 import { getMediaForProperty, getPublicPropertyBySlug, getRelatedProperties, getMediaForProperties } from '@/lib/supabase/queries';
 import type { Property, PropertyMedia } from '@/lib/types';
 import { coverImage, formatNumber, formatPrice, whatsappLink } from '@/lib/utils';
+import { resolvePropertyMap } from '@/lib/maps';
 
 export function PropertyDetail({ slug }: { slug: string }) {
   const config = useSupabaseConfig();
@@ -66,9 +67,10 @@ export function PropertyDetail({ slug }: { slug: string }) {
   const images = media.filter(m => m.kind === 'image');
   const gallery = images.length ? images : [];
   const price = `${formatPrice(property.price, property.currency)}${property.listing_type === 'rent' ? ` / ${property.price_period || 'month'}` : ''}`;
-  const mapSrc = property.map_url || (property.latitude && property.longitude
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${property.longitude - .012}%2C${property.latitude - .008}%2C${property.longitude + .012}%2C${property.latitude + .008}&layer=mapnik&marker=${property.latitude}%2C${property.longitude}`
-    : null);
+  // Google Maps share links cannot be embedded directly (X-Frame-Options).
+  // resolvePropertyMap() normalises them, extracts coordinates, and always
+  // provides a working external Google Maps link.
+  const map = resolvePropertyMap(property);
   const share = async () => {
     try { await navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2200); } catch { setCopied(false); }
   };
@@ -153,9 +155,20 @@ export function PropertyDetail({ slug }: { slug: string }) {
 
               <div className="mt-48">
                 <div className="flex between center gap-16 wrap mb-16"><h3 className="h4">Location</h3><span className="small muted flex center gap-8"><MapPin size={14} className="gold" />{[property.location, property.city, property.country].filter(Boolean).join(', ')}</span></div>
-                {mapSrc
-                  ? <div className="map-frame"><iframe src={mapSrc} title={`Map of ${property.title}`} loading="lazy" referrerPolicy="no-referrer" /></div>
-                  : <div className="map-frame flex center" style={{ justifyContent: 'center' }}><div className="text-center"><ShieldCheck size={28} className="gold" style={{ margin: '0 auto 12px' }} /><p className="small muted">Precise location details are shared privately on request.</p><Link href="/contact" className="link-gold mt-16">Request details <ArrowUpRight size={14} /></Link></div></div>}
+                {map ? <>
+                  <div className={`map-frame ${map.provider === 'google' ? 'map-frame-google' : ''}`}>
+                    <iframe src={map.embedUrl} title={`Map of ${property.title}`} loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade" allowFullScreen
+                      sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox allow-presentation" />
+                  </div>
+                  <div className="map-actions">
+                    <span className="tiny muted">{map.approximate
+                      ? 'Approximate area — exact coordinates have not been published.'
+                      : 'Exact coordinates published by the owner.'}</span>
+                    <a href={map.externalUrl} target="_blank" rel="noopener noreferrer" className="link-gold">Open in Google Maps <ArrowUpRight size={14} /></a>
+                  </div>
+                  <p className="tiny muted mt-8">If the map does not appear, embedded maps may be blocked on your network — use “Open in Google Maps” above.</p>
+                </> : <div className="map-frame flex center" style={{ justifyContent: 'center' }}><div className="text-center"><ShieldCheck size={28} className="gold" style={{ margin: '0 auto 12px' }} /><p className="small muted">Precise location details are shared privately on request.</p><Link href="/contact" className="link-gold mt-16">Request details <ArrowUpRight size={14} /></Link></div></div>}
               </div>
 
               <div className="flex gap-24 wrap mt-32 small muted">

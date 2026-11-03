@@ -8,7 +8,7 @@ values
   ('property-media', 'property-media', true, 125829120,
     array['image/jpeg','image/png','image/webp','image/avif','image/gif','video/mp4','video/webm','video/quicktime']),
   ('branding', 'branding', true, 5242880,
-    array['image/jpeg','image/png','image/webp','image/avif','image/svg+xml']),
+    array['image/jpeg','image/png','image/webp','image/avif','image/gif','image/svg+xml']),
   ('owner-private', 'owner-private', false, 26214400, null)
 on conflict (id) do update set
   public = excluded.public,

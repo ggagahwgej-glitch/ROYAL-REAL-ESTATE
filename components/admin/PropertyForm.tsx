@@ -9,6 +9,7 @@ import { useOwner } from '@/lib/hooks/useOwner';
 import { createProperty, deleteProperty, getOwnerProperty, updateProperty } from '@/lib/supabase/queries';
 import type { Property, PropertyInput } from '@/lib/types';
 import { PROPERTY_CATEGORIES, AMENITY_SUGGESTIONS, parseList, slugify } from '@/lib/utils';
+import { validateMapUrl } from '@/lib/maps';
 
 const DEFAULTS: PropertyInput = {
   title: '', slug: '', subtitle: '', description: '',
@@ -42,6 +43,7 @@ export function PropertyForm({ propertyId }: { propertyId?: string }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [slugTouched, setSlugTouched] = useState(false);
+  const [justCreated, setJustCreated] = useState(false);
 
   const load = useCallback(async () => {
     if (!propertyId || !owner.client) return;
@@ -56,6 +58,12 @@ export function PropertyForm({ propertyId }: { propertyId?: string }) {
     setFeaturesText((p.features ?? []).join('\n'));
   }, [propertyId, owner.client]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    // A freshly created property lands here with ?saved=1 — confirm success.
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('saved') === '1') {
+      setJustCreated(true);
+    }
+  }, []);
 
   const set = <K extends keyof PropertyInput>(key: K, value: PropertyInput[K]) => {
     setForm(f => {
@@ -80,6 +88,8 @@ export function PropertyForm({ propertyId }: { propertyId?: string }) {
     if (form.latitude != null && (form.latitude < -90 || form.latitude > 90)) e.latitude = 'Latitude must be between -90 and 90.';
     if (form.longitude != null && (form.longitude < -180 || form.longitude > 180)) e.longitude = 'Longitude must be between -180 and 180.';
     if (!slugify(form.slug || form.title)) e.slug = 'A valid URL slug is required.';
+    const mapError = validateMapUrl(form.map_url);
+    if (mapError) e.map_url = mapError;
     return e;
   };
 
@@ -87,7 +97,7 @@ export function PropertyForm({ propertyId }: { propertyId?: string }) {
     e.preventDefault();
     const validation = validate();
     setErrors(validation);
-    if (Object.keys(validation).length) { setFeedback({ tone: 'error', text: 'Please correct the highlighted fields before saving.' }); setTab('details'); return; }
+    if (Object.keys(validation).length) { setFeedback({ tone: 'error', text: 'Please correct the highlighted fields before saving.' }); setTab(validation.map_url ? 'specs' : 'details'); return; }
     if (!owner.client) { setFeedback({ tone: 'error', text: 'No authenticated Supabase client. Sign in again.' }); return; }
     setSaving(true); setFeedback(null);
     const payload: PropertyInput = {
@@ -123,11 +133,14 @@ export function PropertyForm({ propertyId }: { propertyId?: string }) {
           <h2 className="admin-title mt-8">{isEdit ? (form.title || 'Untitled residence') : 'Create a property'}</h2>
           <p className="small muted mt-8">{isEdit ? `Reference IR-${propertyId?.slice(0, 8).toUpperCase()} · last saved ${new Date((form as Property).updated_at ?? Date.now()).toLocaleString('en-GB')}` : 'Drafts are private. Publish when the residence is ready to appear on the website.'}</p></div>
         <div className="flex gap-12 wrap">
-          <Link href={isEdit ? `/properties/${form.slug}` : '/properties'} className="btn btn-ghost btn-sm" target={isEdit ? '_blank' : undefined}>View public site</Link>
+          {isEdit && form.status === 'published'
+            ? <Link href={`/properties/${form.slug}`} className="btn btn-ghost btn-sm" target="_blank">View public page</Link>
+            : <span className="tiny muted" title="Publish this property to make its public page available">Public page available after publishing</span>}
           <button type="submit" className="btn btn-gold btn-sm" disabled={saving}>{saving ? <><Loader2 size={14} className="spinner" /> Saving…</> : <><Save size={14} /> {isEdit ? 'Save changes' : 'Create property'}</>}</button>
         </div>
       </div>
 
+      {justCreated && <Notice tone="success" title="Property created">The residence is saved as a private draft. Add images in the Media gallery tab, then set its status to Published to make the public page live.</Notice>}
       {feedback && <Notice tone={feedback.tone}>{feedback.text}</Notice>}
 
       <div className="tabs">{TABS.map(t => <button type="button" key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}><t.Icon size={14} style={{ verticalAlign: 'middle', marginRight: 8 }} />{t.label}</button>)}</div>
@@ -179,8 +192,10 @@ export function PropertyForm({ propertyId }: { propertyId?: string }) {
           <div className="field"><label className="label" htmlFor="p-year">Year built</label><input id="p-year" className="input" type="number" min="1500" max="2200" value={form.year_built ?? ''} onChange={e => num('year_built', e.target.value, true)} /></div>
           <div className="field"><label className="label" htmlFor="p-lat">Latitude</label><input id="p-lat" className={`input ${errors.latitude ? 'input-error' : ''}`} type="number" step="any" value={form.latitude ?? ''} onChange={e => num('latitude', e.target.value, true)} /></div>
           <div className="field"><label className="label" htmlFor="p-lng">Longitude</label><input id="p-lng" className={`input ${errors.longitude ? 'input-error' : ''}`} type="number" step="any" value={form.longitude ?? ''} onChange={e => num('longitude', e.target.value, true)} /></div>
-          <div className="field span-2"><label className="label" htmlFor="p-map">Embedded map URL (optional)</label><input id="p-map" className="input" value={form.map_url ?? ''} onChange={e => set('map_url', e.target.value)} placeholder="https://www.openstreetmap.org/export/embed.html?…" />
-            <span className="hint">If left blank, latitude/longitude generate a private map on the property page.</span></div>
+          <div className="field span-2"><label className="label" htmlFor="p-map">Map link (optional)</label>
+            <input id="p-map" className={`input ${errors.map_url ? 'input-error' : ''}`} value={form.map_url ?? ''} onChange={e => set('map_url', e.target.value)} placeholder="https://maps.app.goo.gl/… or a Google Maps / OpenStreetMap link" />
+            {errors.map_url && <span className="field-error">{errors.map_url}</span>}
+            <span className="hint">Paste any Google Maps share/place/embed link or an OpenStreetMap embed link — it is converted into a working embedded map automatically. If left blank, latitude/longitude (or the city) generate the map. Every listing also gets an “Open in Google Maps” link.</span></div>
           <div className="field span-2"><label className="label" htmlFor="p-amenities">Amenities (one per line)</label>
             <textarea id="p-amenities" className="textarea" value={amenitiesText} onChange={e => setAmenitiesText(e.target.value)} placeholder="Private infinity pool&#10;Concierge service" />
             <span className="hint">Suggestions: {AMENITY_SUGGESTIONS.slice(0, 6).join(' · ')}</span></div>

@@ -117,18 +117,32 @@ export async function runDiagnostics(config: SupabaseConfig | null, ownerClient:
     else results.push(PASS('private-inquiries', 'Private inquiries protected', 'Anonymous reads returned no private rows.'));
   } catch { results.push(PASS('private-inquiries', 'Private inquiries protected', 'Anonymous reads were rejected.')); }
 
-  // 8 — controlled public inquiry insert
-  try {
-    const { data, error } = await anon.from('inquiries').insert({
-      name: 'Diagnostic Enquiry', email: 'diagnostics@example.com',
+  // 8 — controlled public inquiry insert. Anon has no SELECT privilege on
+  // inquiries, so the probe must NOT request a representation.
+  const probeEmail = `diagnostics+${Date.now().toString(36)}@example.com`;
+  if (!ownerClient) {
+    // Without an owner session we cannot verify or DELETE the probe row.
+    // Never leave a fake enquiry behind in the client's real database.
+    results.push(INFO('inquiry-insert', 'Controlled public inquiry insert', 'Sign in as the owner to run this probe: it inserts a temporary enquiry, verifies the forced status and removes the test row.'));
+  } else try {
+    const { error } = await anon.from('inquiries').insert({
+      name: 'Diagnostic Enquiry', email: probeEmail,
       message: 'Automated permission test enquiry from the Owner Studio.', status: 'resolved',
-    }).select('id,status').single();
-    if (error) results.push(WARN('inquiry-insert', 'Controlled public inquiry insert', `Insert was rejected: ${error.message}. Check the inquiries RLS policy.`));
-    else if (data?.status !== 'new') results.push(FAIL('inquiry-insert', 'Controlled public inquiry insert', 'A visitor could set the inquiry status. Check guard_inquiry_insert().'));
-    else {
-      results.push(PASS('inquiry-insert', 'Controlled public inquiry insert', 'Accepted with status forcibly set to “new”.'));
-      if (ownerClient) await ownerClient.from('inquiries').delete().eq('id', String(data.id));
-      else results.push(WARN('inquiry-cleanup', 'Diagnostic inquiry cleanup', 'A test enquiry row remains; delete it from Inquiries. Sign in as owner to allow automatic cleanup.'));
+    });
+    if (error) {
+      results.push(WARN('inquiry-insert', 'Controlled public inquiry insert', `Insert was rejected: ${error.message}. Check the inquiries RLS insert policy.`));
+    } else {
+      const { data: rows, error: readError } = await ownerClient.from('inquiries')
+        .select('id,status').eq('email', probeEmail).limit(1);
+      if (readError) results.push(WARN('inquiry-insert', 'Controlled public inquiry insert', `Insert accepted but could not be verified: ${readError.message}`));
+      else if (!rows?.length) results.push(WARN('inquiry-insert', 'Controlled public inquiry insert', 'Insert reported success but no row was found. Check RLS and triggers.'));
+      else if (rows[0].status !== 'new') results.push(FAIL('inquiry-insert', 'Controlled public inquiry insert', 'A visitor controlled the inquiry status. Check guard_inquiry_insert() and the WITH CHECK policy.'));
+      else results.push(PASS('inquiry-insert', 'Controlled public inquiry insert', 'Accepted with status forcibly set to “new”.'));
+      const cleanupId = rows?.[0]?.id;
+      if (cleanupId) {
+        const { error: cleanupError } = await ownerClient.from('inquiries').delete().eq('id', cleanupId);
+        if (cleanupError) results.push(WARN('inquiry-cleanup', 'Diagnostic inquiry cleanup', `The test row remains: ${cleanupError.message}`));
+      }
     }
   } catch (e) { results.push(WARN('inquiry-insert', 'Controlled public inquiry insert', String(e))); }
 

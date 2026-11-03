@@ -6,8 +6,8 @@
 |---|---|
 | `npm run typecheck` | TypeScript strict check across all app, lib and component code |
 | `npm run build` | Production build of all 24 routes, metadata routes, sitemap, robots, manifest |
-| `npm run test` | 48 unit + static security assertions (configuration validation, key-role rejection, browser config persistence/import/export, exact hero copy, genuine-testimonial integrity, filtering, pagination, formatting, RLS schema assertions, no service-role key, no PIN system) |
-| `npm run smoke` | 39 checks: all routes, exact hero copy/button labels, no fabricated testimonials, honest empty state, configuration endpoint rejects secret keys and unauthenticated publishes; robots/sitemap/manifest/favicon present |
+| `npm run test` | 66 unit + static security + regression assertions (configuration validation, key-role rejection, browser config persistence/import/export, exact hero copy, genuine-testimonial integrity, filtering, pagination, formatting, RLS schema assertions, no service-role key, no PIN system, **anon-inquiry no-representation insert, Google/OpenStreetMap map normalisation, open-redirect blocking, MIME inference, DB-first media deletion**) |
+| `npm run smoke` | 41 checks: all routes, exact hero copy/button labels, no fabricated testimonials, honest empty state, configuration endpoint rejects secret keys and unauthenticated publishes, DELETE on an unconfigured site does not false-500, downloadable RLS script is present; robots/sitemap/manifest/favicon present |
 
 ## Live, project-dependent tests (require a real Supabase project)
 

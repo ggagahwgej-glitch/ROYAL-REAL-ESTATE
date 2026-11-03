@@ -60,7 +60,7 @@ supabase/                     schema.sql · storage.sql · owner-provisioning.sq
 public/
   brand/ sql/ images/         Static brand kit, SQL downloads, original photography
   public-config.json          Shared public bootstrap template
-tests/ scripts/               48 unit/security tests + 39 live route/content smoke checks
+tests/ scripts/               66 unit/security/regression tests + 41 live route/content smoke checks
 ```
 
 ### Security model
@@ -105,7 +105,7 @@ npm run dev          # development server (0.0.0.0)
 npm run build        # production build
 npm run start        # production server (0.0.0.0)
 npm run typecheck    # strict TypeScript check
-npm run test         # vitest — 48 tests
+npm run test         # vitest — 66 tests
 npm run smoke        # requires a running server; BASE_URL=http://localhost:3000
 ```
 
@@ -117,6 +117,24 @@ web manifest, local image optimization with next/image and lazy loading for owne
 Canonical origins are derived from the incoming request host, so no environment variable is
 needed for SEO (`NEXT_PUBLIC_SITE_URL` is an optional override).
 Admin routes carry `noindex, nofollow, nocache`.
+
+## Bug-fix pass ( November 2026 )
+
+A systematic review of the public site, Owner Studio, Supabase layer, listing flow, maps and
+uploads found and corrected the following concrete defects. Each has a regression test in
+`tests/integration.test.ts` unless it is a pure SQL/HTTP concern.
+
+| Area | Defect | Fix |
+|---|---|---|
+| Public enquiries | `submitInquiry()` used `.insert(...).select('id')`, requesting `return=representation` from an `anon` role with **no SELECT grant/policy** on `inquiries`. Every enquiry failed with permission denied. | Insert without representation; validate name/email/message first; return `QueryResult<null>`. |
+| Diagnostics | The controlled inquiry probe used the same forbidden anon `.select()`. | Probe with a unique email, insert without representation, verify forced `status='new'` through the owner client, then clean up. |
+| RLS test script | `supabase/rls-tests.sql` aborted on the *expected* `insufficient_privilege` and used an anon SELECT to verify a forced status — self-contradictory. | Rewritten to treat denied reads as PASS, insert without `RETURNING`, verify after `reset role`, then `rollback`. Both copies (`supabase/`, `public/sql/`) are in sync. |
+| Google Maps | Google share/place links (`maps.app.goo.gl`, `google.com/maps/place/…`) were iframed verbatim and rendered blank because Google sends `X-Frame-Options`; no external link existed. Arbitrary URLs were accepted. | New `lib/maps.ts` extracts coordinates, builds keyless Google/OSM embeds, host-allowlists owner input, handles `latitude=0`, and every listing now has an **Open in Google Maps** link plus a blocked-iframe note. Owner form validates the pasted link and explains it. |
+| Uploads | Files with an empty MIME type (common on Android/camera-roll) were rejected; HEIC produced a confusing error; `deletePropertyMedia()` removed the Storage object *before* the DB row, so a failing DB delete left a broken gallery; cleanup failures were silently swallowed; `client!` could throw when a session lapsed. | MIME inference from extension, actionable HEIC message, DB-first deletion with explicit warning, rollback-failure reporting, `requireClient()` guards and an honest upload message. Branding bucket MIME allowlist now matches the validator. |
+| Auth / security | `?next=https://evil.example` was an open redirect; password recovery saved a new password without verifying a recovery session; publishing used a possibly stale session snapshot; owner verification could be skipped by a `busy` guard and left stale state after config changes. | `safeNextPath()` allowlists internal `/admin` routes; recovery requires a verified session (also supports `?code=` PKCE links); `getOwnerAccessToken()` revalidates a current token; `useOwner` uses a generation token instead of dropping re-checks. |
+| Configuration | A forced `initialize()` could emit stale shared config after a newer run; the REST probe sent publishable keys in a Bearer header on gateways that reject that; DELETE reported 500 when no runtime file existed. | Generation-guarded initialisation, dual apikey/Bearer probe variants, honest ENOENT response. |
+| Listings | `getRelatedProperties()` built a PostgREST `.or()` expression from unquoted city/category values; search input could contain filter-syntax characters. | Two parameterised queries merged in memory; stricter search sanitising. |
+| Performance / UX | Every public component issued its own site-settings query; a draft property's "View public site" link 404'd; the collection's empty state sent visitors to an admin page; a newly created property showed no success notice. | Short-lived shared settings promise cache with invalidation on save; status-aware link; public-facing CTA; creation confirmation. |
 
 ## Honest scope notes
 

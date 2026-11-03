@@ -13,7 +13,9 @@ export function ok<T>(data: T): QueryResult<T> { return { data, error: null }; }
 export function fail<T>(error: unknown): QueryResult<T> { return { data: null, error: errorMessage(error) }; }
 
 function sanitizeSearch(value: string): string {
-  return value.replace(/[%,().*\\]/g, ' ').trim().slice(0, 80);
+  // PostgREST `.or()` uses commas, parentheses and quotes as syntax. Strip
+  // them from user input so a search term can never break the filter string.
+  return value.replace(/[%,().*\\"']/g, ' ').trim().replace(/\s+/g, ' ').slice(0, 80);
 }
 
 export interface PublicPropertiesOptions extends PropertyFilters {
@@ -93,14 +95,28 @@ export async function getMediaForProperty(client: Client, propertyId: string): P
 
 export async function getRelatedProperties(client: Client, property: Property, limit = 3): Promise<QueryResult<Property[]>> {
   try {
-    const { data, error } = await client.from('properties').select('*').eq('status', 'published')
-      .neq('id', property.id).or(`city.eq.${sanitizeSearch(property.city)},category.eq.${sanitizeSearch(property.category)}`)
-      .limit(limit);
-    if (error) return fail(error);
-    if (data?.length) return ok(data as Property[]);
+    // Two parameterised queries instead of a hand-built `.or()` expression:
+    // city/category values containing spaces, dots or quotes can never break
+    // the PostgREST filter syntax this way.
+    const scoped = () => client.from('properties').select('*').eq('status', 'published').neq('id', property.id).limit(limit);
+    const [byCity, byCategory] = await Promise.all([
+      property.city ? scoped().eq('city', property.city) : Promise.resolve({ data: [], error: null }),
+      property.category ? scoped().eq('category', property.category) : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (byCity.error) return fail(byCity.error);
+    if (byCategory.error) return fail(byCategory.error);
+    const seen = new Set<string>();
+    const merged = [...(byCity.data ?? []), ...(byCategory.data ?? [])]
+      .filter(p => p && !seen.has(String(p.id)) && seen.add(String(p.id))) as Property[];
+    if (merged.length >= limit) return ok(merged.slice(0, limit));
     const fallback = await client.from('properties').select('*').eq('status', 'published').neq('id', property.id).limit(limit);
     if (fallback.error) return fail(fallback.error);
-    return ok((fallback.data ?? []) as Property[]);
+    const filled = [...merged];
+    for (const p of (fallback.data ?? []) as Property[]) {
+      if (filled.length >= limit) break;
+      if (!seen.has(p.id)) { seen.add(p.id); filled.push(p); }
+    }
+    return ok(filled.slice(0, limit));
   } catch (e) { return fail(e); }
 }
 
@@ -140,19 +156,33 @@ export interface InquiryInput {
   source?: string | null;
 }
 
-export async function submitInquiry(client: Client, input: InquiryInput): Promise<QueryResult<{ id: string }>> {
+export async function submitInquiry(client: Client, input: InquiryInput): Promise<QueryResult<null>> {
+  // Mirror the database constraints so the visitor gets an actionable message
+  // instead of a raw PostgREST error.
+  const name = (input.name ?? '').trim();
+  const email = (input.email ?? '').trim().toLowerCase();
+  const message = (input.message ?? '').trim();
+  if (name.length < 2 || name.length > 120) return fail(new Error('Please enter a name between 2 and 120 characters.'));
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return fail(new Error('Please enter a valid email address.'));
+  if (message.length < 10 || message.length > 5000) return fail(new Error('Your message must be between 10 and 5000 characters.'));
   try {
-    const { data, error } = await client.from('inquiries').insert({
+    // SECURITY: `anon` has INSERT but deliberately NO SELECT grant/policy on
+    // inquiries. Never add `.select()` here: PostgREST would use
+    // `return=representation`, which requires SELECT and would make EVERY
+    // public enquiry fail with "permission denied for table inquiries".
+    // The insert is committed with `return=minimal` and success is confirmed
+    // by the absence of an error.
+    const { error } = await client.from('inquiries').insert({
       property_id: input.property_id ?? null,
-      name: input.name.trim(),
-      email: input.email.trim().toLowerCase(),
+      name,
+      email,
       phone: input.phone?.trim() || null,
-      message: input.message.trim(),
+      message,
       source: input.source ?? 'website',
       status: 'new',
-    }).select('id').single();
+    });
     if (error) return fail(error);
-    return ok({ id: String((data as { id: string }).id) });
+    return ok(null);
   } catch (e) { return fail(e); }
 }
 

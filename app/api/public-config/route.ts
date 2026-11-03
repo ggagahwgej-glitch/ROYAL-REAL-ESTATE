@@ -140,8 +140,14 @@ export async function DELETE(request: Request) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 403, headers: NO_STORE });
   try {
     await fs.unlink(RUNTIME_FILE);
-    return NextResponse.json({ ok: true, message: 'Runtime shared configuration cleared. A static /public-config.json file, if present, is still active.' }, { headers: NO_STORE });
+    return NextResponse.json({ ok: true, message: 'Runtime shared configuration cleared. A committed static /public-config.json file, if present, must be removed from the repository and the site redeployed.' }, { headers: NO_STORE });
   } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') {
+      // The active config came from the committed static file or env — there is
+      // no runtime file to remove. Do not report a false 500.
+      return NextResponse.json({ ok: true, message: 'No runtime shared configuration was stored. A committed static /public-config.json file (or build-time fallback), if present, must be removed from the repository and the site redeployed.' }, { headers: NO_STORE });
+    }
     return NextResponse.json({ error: `Could not remove the runtime file: ${(e as Error).message}` }, { status: 500, headers: NO_STORE });
   }
 }

@@ -6,7 +6,7 @@ import { Notice } from '@/components/ui/UI';
 import { useSupabaseConfig } from '@/lib/hooks/useSupabaseConfig';
 import { getSupabaseClient } from '@/lib/supabase/factory';
 import { submitInquiry } from '@/lib/supabase/queries';
-import { validateEmail, validatePassword } from '@/lib/auth/owner';
+import { validateEmail } from '@/lib/auth/owner';
 import { whatsappLink } from '@/lib/utils';
 import type { SiteSettings } from '@/lib/types';
 

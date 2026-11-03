@@ -118,6 +118,8 @@ export interface SiteSettings {
 export interface QueryResult<T> {
   data: T | null;
   error: string | null;
+  /** Non-fatal problem that succeeded overall — must still be shown to the owner. */
+  warning?: string;
 }
 
 export interface PropertyFilters {

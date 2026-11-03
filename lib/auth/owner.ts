@@ -110,6 +110,34 @@ export async function updatePassword(client: SupabaseClient, password: string): 
   } catch (e) { return { data: null, error: errorMessage(e) }; }
 }
 
+/**
+ * Only allow a same-site /admin URL as a post-login destination. Without this,
+ * `?next=https://evil.example` would turn the login page into an open redirect.
+ */
+export function safeNextPath(value: string | null | undefined, fallback = '/admin/dashboard'): string {
+  const raw = (value ?? '').trim();
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\') || raw.length > 300) return fallback;
+  try {
+    const u = new URL(raw, 'https://internal.invalid');
+    if (u.origin !== 'https://internal.invalid') return fallback;
+    if (!/^\/admin(?:\/|$)/.test(u.pathname)) return fallback;
+    if (u.pathname === '/admin' || u.pathname === '/admin/login') return fallback;
+    return `${u.pathname}${u.search}${u.hash}`;
+  } catch { return fallback; }
+}
+
+/** Always obtain a CURRENT, server-validated access token for privileged writes. */
+export async function getOwnerAccessToken(client: SupabaseClient | null): Promise<string | null> {
+  if (!client) return null;
+  try {
+    const { data, error } = await client.auth.getSession();
+    if (error || !data.session?.access_token) return null;
+    const { error: userError } = await client.auth.getUser(data.session.access_token);
+    if (userError) return null;
+    return data.session.access_token;
+  } catch { return null; }
+}
+
 export function friendlyAuthError(message: string): string {
   const lower = message.toLowerCase();
   if (lower.includes('invalid login credentials')) return 'The email or password is incorrect.';

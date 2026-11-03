@@ -81,6 +81,7 @@ const EMPTY_STATE: ConfigState = {
 
 let state: ConfigState = EMPTY_STATE;
 let initPromise: Promise<ConfigState> | null = null;
+let initGeneration = 0;
 const listeners = new Set<() => void>();
 
 function emit(next: Partial<ConfigState>) {
@@ -181,10 +182,15 @@ function resolve(local: SupabaseConfig | null, shared: SupabaseConfig | null, en
 export function initialize(force = false): Promise<ConfigState> {
   if (typeof window === 'undefined') return Promise.resolve(state);
   if (initPromise && !force) return initPromise;
-  initPromise = (async () => {
+  // A forced re-initialisation supersedes any in-flight one. Without a
+  // generation token the older run would clear `initPromise` while the newer
+  // run was still active (and could emit stale shared config afterwards).
+  const generation = ++initGeneration;
+  const run = (async () => {
     emit({ loading: true, error: null });
     try {
-      const [sharedResult] = await Promise.all([readSharedConfig()]);
+      const sharedResult = await readSharedConfig();
+      if (generation !== initGeneration) return state;
       const local = readLocal();
       const env = readEnv();
       const resolved = resolve(local, sharedResult.config, env);
@@ -195,10 +201,12 @@ export function initialize(force = false): Promise<ConfigState> {
         sharedMeta: sharedResult.meta, error: null,
       });
     } catch (e) {
+      if (generation !== initGeneration) return state;
       emit({ initialized: true, loading: false, error: e instanceof Error ? e.message : 'Configuration could not be loaded.' });
     }
     return state;
-  })().finally(() => { initPromise = null; });
+  })();
+  initPromise = run.finally(() => { if (generation === initGeneration) initPromise = null; });
   return initPromise;
 }
 
@@ -334,24 +342,39 @@ export async function testConnection(input: Partial<SupabaseConfig>): Promise<Co
     detail: 'URL format is valid and the key is a publishable/anon key. No service-role credential detected.' }];
 
   // 1. Real network round-trip to PostgREST with the provided key.
+  // New sb_publishable_… keys are NOT JWTs: some gateways reject them in a
+  // Bearer header while accepting them in `apikey`. Legacy anon JWTs need the
+  // Bearer fallback. Try both variants so a valid key is never reported as a
+  // failed connection.
   let reachable = false;
-  try {
-    const res = await timedFetch(`${url}/rest/v1/`, {
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, Accept: 'application/openapi+json' },
-    });
-    if (res.status === 401 || res.status === 403) {
-      steps.push({ id: 'rest', label: 'Verify API key', ok: false, detail: `Supabase rejected the key (HTTP ${res.status}). Check that you pasted the publishable/anon key, not a secret key.` });
-    } else if (!res.ok && res.status >= 500) {
-      steps.push({ id: 'rest', label: 'Reach project', ok: false, detail: `Supabase returned HTTP ${res.status}. The project may be paused or misconfigured.` });
-    } else {
-      reachable = true;
-      steps.push({ id: 'rest', label: 'Reach project & verify API key', ok: true, detail: `Connected to Supabase REST at ${url} (HTTP ${res.status}).` });
+  const publishable = /^sb_publishable_/i.test(anonKey);
+  const withBearer = { apikey: anonKey, Authorization: `Bearer ${anonKey}`, Accept: 'application/openapi+json' };
+  const apikeyOnly = { apikey: anonKey, Accept: 'application/openapi+json' };
+  const variants = publishable ? [apikeyOnly, withBearer] : [withBearer, apikeyOnly];
+  let lastStatus = 0;
+  let networkDetail: string | null = null;
+  let serverDetail: string | null = null;
+  for (const headers of variants) {
+    try {
+      const res = await timedFetch(`${url}/rest/v1/`, { headers });
+      lastStatus = res.status;
+      if (res.status < 400 || res.status === 404) {
+        reachable = true;
+        steps.push({ id: 'rest', label: 'Reach project & verify API key', ok: true,
+          detail: `Connected to Supabase REST at ${url} (HTTP ${res.status}).` });
+        break;
+      }
+      if (res.status >= 500) { serverDetail = `Supabase returned HTTP ${res.status}. The project may be paused or misconfigured.`; break; }
+    } catch (e) {
+      networkDetail = e instanceof Error && e.name === 'AbortError'
+        ? 'The request timed out. Check the URL, network access and whether the project is paused.'
+        : 'Network request failed. Check the Project URL, CORS/allowlist settings and your connection.';
+      break;
     }
-  } catch (e) {
-    const detail = e instanceof Error && e.name === 'AbortError'
-      ? 'The request timed out. Check the URL, network access and whether the project is paused.'
-      : 'Network request failed. Check the Project URL, CORS/allowlist settings and your connection.';
-    steps.push({ id: 'rest', label: 'Reach project', ok: false, detail });
+  }
+  if (!reachable) {
+    steps.push({ id: 'rest', label: 'Verify API key', ok: false,
+      detail: networkDetail ?? serverDetail ?? `Supabase rejected the key (HTTP ${lastStatus || 'no response'}). Confirm you pasted the publishable/anon key, not a secret key, and that the project is active.` });
   }
 
   // 2. Auth service health (informational — some proxies block this path).

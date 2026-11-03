@@ -17,6 +17,7 @@ import {
 import { maskKey, validateConfig } from '@/lib/config/validation';
 import { runDiagnostics, type DiagnosticsReport } from '@/lib/diagnostics';
 import { formatDate } from '@/lib/utils';
+import { getOwnerAccessToken } from '@/lib/auth/owner';
 
 const SQL_FILES = [
   { file: 'schema.sql', label: '1 · Database schema, constraints & RLS policies', note: 'Tables, indexes, validation and all Row Level Security policies.' },
@@ -89,9 +90,11 @@ export default function ConfigurationPage() {
     setBusy('publish'); setFeedback(null); setArtifact(null);
     const validation = validateConfig({ url, anonKey: key });
     if (!validation.ok) { setFeedback({ tone: 'error', text: validation.error ?? 'Invalid configuration.' }); setBusy(null); return; }
-    const token = owner.identity?.session?.access_token;
+    // A session snapshot can be stale after a token refresh — always fetch
+    // and revalidate a CURRENT token for this privileged write.
+    const token = await getOwnerAccessToken(owner.client);
     if (!token) {
-      setFeedback({ tone: 'error', title: 'Owner authentication required', text: 'Publishing is verified server-side against Supabase Auth and profiles.is_owner. Sign in as the provisioned owner, install supabase/schema.sql, then try again.' });
+      setFeedback({ tone: 'error', title: 'Owner authentication required', text: 'Your session could not be verified. Sign in again as the provisioned owner, install supabase/schema.sql, then retry.' });
       setBusy(null); return;
     }
     const res = await publishSharedConfig(validation.value!, token);
@@ -103,7 +106,7 @@ export default function ConfigurationPage() {
   };
 
   const clearShared = async () => {
-    const token = owner.identity?.session?.access_token;
+    const token = await getOwnerAccessToken(owner.client);
     if (!token) { setFeedback({ tone: 'error', text: 'A verified owner session is required to clear shared configuration.' }); return; }
     setBusy('clear-shared');
     const res = await clearSharedConfig(token);

@@ -328,6 +328,8 @@ hr{border:0;border-top:1px solid var(--line-soft);margin:0}
 .sticky-card{position:sticky;top:100px}
 .map-frame{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--navy);height:280px;position:relative}
 .map-frame iframe{width:100%;height:100%;border:0;filter:grayscale(.6) invert(.92) hue-rotate(180deg) contrast(.9)}
+.map-frame-google iframe{filter:none}
+.map-actions{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-top:12px}
 .lightbox{position:fixed;inset:0;z-index:200;background:rgba(4,5,8,.97);display:flex;align-items:center;justify-content:center;flex-direction:column;animation:fadeIn .25s}
 .lightbox img,.lightbox video{max-width:min(92vw,1400px);max-height:80vh;object-fit:contain}
 .lightbox-close{position:absolute;top:22px;right:26px;background:none;border:1px solid var(--line);color:var(--ivory);width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center}

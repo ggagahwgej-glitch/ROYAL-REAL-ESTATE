@@ -109,6 +109,17 @@ try {
     body: JSON.stringify({ config: { url: 'not a url', anonKey: ANON }, accessToken: 'a.b.c' }),
   });
   check('POST refuses an invalid URL (400)', badUrl.status === 400);
+
+  const clear = await request('/api/public-config', {
+    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accessToken: '' }),
+  });
+  check('DELETE handles an unconfigured site without a false 500',
+    clear.status === 200 && clear.body.ok === true, `status=${clear.status}`);
+
+  const mapSql = await request('/sql/rls-tests.sql');
+  check('Downloadable RLS script contains executable permission probes',
+    mapSql.status === 200 && String(mapSql.body).includes('PASS A8b'));
 } catch (e) { check('Configuration endpoint tests', false, e.message); }
 
 console.log(`\n${'='.repeat(64)}`);

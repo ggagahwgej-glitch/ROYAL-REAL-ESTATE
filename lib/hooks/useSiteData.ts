@@ -6,7 +6,30 @@ import {
   getMediaForProperties, getPublicProperties, getSiteSettings,
 } from '@/lib/supabase/queries';
 import type { PagedResult, Property, PropertyFilters, PropertyMedia, SiteSettings } from '@/lib/types';
-import { DEFAULT_SETTINGS } from '@/lib/utils';
+import { DEFAULT_SETTINGS, shortHash } from '@/lib/utils';
+
+/* One small settings row is shared by Header, Hero, Footer, Testimonials,
+   InquiryForm and PropertyDetail. Without a cache every one of those mounts
+   fires its own identical PostgREST query. De-duplicate with a short-lived
+   promise cache keyed by the active configuration. */
+const SETTINGS_TTL_MS = 15_000;
+interface SettingsCacheEntry { promise: Promise<{ data: SiteSettings | null; error: string | null }>; expires: number }
+const settingsCache = new Map<string, SettingsCacheEntry>();
+
+export function invalidateSiteSettingsCache(): void { settingsCache.clear(); }
+
+function cachedSettings(client: NonNullable<ReturnType<typeof getSupabaseClient>>, key: string, force: boolean) {
+  if (!force) {
+    const hit = settingsCache.get(key);
+    if (hit && hit.expires > Date.now()) return hit.promise;
+  }
+  const promise = getSiteSettings(client).then(result => {
+    if (result.error) settingsCache.delete(key); // never cache a failure
+    return result;
+  });
+  settingsCache.set(key, { promise, expires: Date.now() + SETTINGS_TTL_MS });
+  return promise;
+}
 
 export function useSiteSettings() {
   const config = useSupabaseConfig();
@@ -14,19 +37,22 @@ export function useSiteSettings() {
   const [settings, setSettings] = useState<SiteSettings>({ ...DEFAULT_SETTINGS });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const cacheKey = config.config
+    ? `${config.source}:${config.config.url}:${shortHash(config.config.anonKey)}`
+    : 'none';
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     if (!config.initialized) return;
     if (!client) { setSettings({ ...DEFAULT_SETTINGS }); setLoading(false); setError(null); return; }
     setLoading(true);
-    const result = await getSiteSettings(client);
+    const result = await cachedSettings(client, cacheKey, force);
     if (result.data) setSettings(result.data);
     setError(result.error);
     setLoading(false);
-  }, [client, config.initialized, config.source, config.config?.url]);
+  }, [client, config.initialized, cacheKey]);
 
   useEffect(() => { void load(); }, [load]);
-  return { settings, loading, error, refresh: load, configured: Boolean(config.config) };
+  return { settings, loading, error, refresh: () => load(true), configured: Boolean(config.config) };
 }
 
 export interface PropertiesState {

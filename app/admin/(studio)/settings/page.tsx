@@ -4,7 +4,7 @@ import { Save, UploadCloud, RefreshCw, Globe, Palette, Image as ImageIcon, Conta
 import { Brand } from '@/components/brand/Brand';
 import { Notice } from '@/components/ui/UI';
 import { useOwner } from '@/lib/hooks/useOwner';
-import { useSiteSettings } from '@/lib/hooks/useSiteData';
+import { invalidateSiteSettingsCache, useSiteSettings } from '@/lib/hooks/useSiteData';
 import { saveSiteSettings } from '@/lib/supabase/queries';
 import { uploadBrandingAsset } from '@/lib/supabase/storage';
 import type { SiteSettings, Testimonial } from '@/lib/types';
@@ -45,6 +45,7 @@ export default function AdminSettingsPage() {
     const res = await saveSiteSettings(owner.client, payload);
     setBusy(false);
     if (res.error) { setFeedback({ tone: 'error', text: `Settings could not be saved: ${res.error}` }); return; }
+    invalidateSiteSettingsCache();
     setFeedback({ tone: 'success', text: 'Website settings saved. Public pages pick up the changes on their next load.' });
     refresh();
   };

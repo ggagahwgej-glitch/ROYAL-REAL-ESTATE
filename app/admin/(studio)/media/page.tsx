@@ -25,7 +25,7 @@ export default function AdminMediaPage() {
     const [p, m] = await Promise.all([getOwnerProperties(owner.client), getOwnerMedia(owner.client)]);
     if (p.error) setError(p.error);
     else { setProperties(p.data ?? []); if (!selected && p.data?.length) setSelected(p.data[0].id); }
-    if (m.error && !error) setError(m.error); else setMedia(m.data ?? []);
+    if (m.error) setError(m.error); else { setMedia(m.data ?? []); setError(null); }
     setLoading(false);
   }, [owner.client, selected, error]);
   useEffect(() => { void load(); }, [owner.client]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -80,7 +80,10 @@ export default function AdminMediaPage() {
               <div className="media-actions"><button className="btn btn-danger btn-sm" onClick={async () => {
                 if (!owner.client || !window.confirm('Remove this asset permanently?')) return;
                 const res = await deletePropertyMedia(owner.client, m);
-                if (res.error) setError(res.error); else { setFeedback('Asset removed.'); await load(); }
+                if (res.error) { setError(res.error); return; }
+                setError(null);
+                setFeedback(res.warning ?? 'Asset removed.');
+                await load();
               }}><Trash2 size={13} /> Remove</button></div>
             </div>)}</div>}
       </div>}

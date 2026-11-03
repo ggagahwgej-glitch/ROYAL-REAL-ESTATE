@@ -8,7 +8,7 @@ import { Notice } from '@/components/ui/UI';
 import { SetupState } from '@/components/site/SetupState';
 import { useSupabaseConfig } from '@/lib/hooks/useSupabaseConfig';
 import { getSupabaseClient } from '@/lib/supabase/factory';
-import { clearLoginFailures, friendlyAuthError, getLoginThrottle, recordLoginFailure, requestPasswordReset, signInOwner, updatePassword, validateEmail, validatePassword, verifyOwner } from '@/lib/auth/owner';
+import { clearLoginFailures, friendlyAuthError, getLoginThrottle, recordLoginFailure, requestPasswordReset, signInOwner, updatePassword, validateEmail, validatePassword, verifyOwner, safeNextPath } from '@/lib/auth/owner';
 
 type Mode = 'signin' | 'forgot' | 'recovery';
 
@@ -27,23 +27,58 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [throttle, setThrottle] = useState(getLoginThrottle());
+  const [recoveryReady, setRecoveryReady] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
   const client = config.config ? getSupabaseClient(config.config) : null;
 
   // Read URL state after hydration so the sign-in form is server-rendered
   // (useSearchParams would force a client-side-only bailout).
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
-    setQuery({ next: p.get('next') || '/admin/dashboard', reason: p.get('reason'), reset: p.get('reset') === '1' });
-    if (p.get('reset') === '1') setMode('recovery');
+    setQuery({ next: safeNextPath(p.get('next')), reason: p.get('reason'), reset: p.get('reset') === '1' });
+    if (p.get('reset') === '1' || /type=recovery|access_token=/.test(window.location.hash)) setMode('recovery');
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const hashError = hash.get('error_description') ?? hash.get('error');
+    if (hashError) { setError(`The reset link could not be used: ${hashError.replace(/\+/g, ' ')}. Please request a new one.`); setMode('forgot'); }
   }, []);
 
   useEffect(() => {
     if (!client) return;
     const { data } = client.auth.onAuthStateChange(event => {
-      if (event === 'PASSWORD_RECOVERY') { setMode('recovery'); setSuccess('Your reset link is verified. Choose a new password.'); }
+      if (event === 'PASSWORD_RECOVERY') {
+        setMode('recovery'); setRecoveryReady(true); setRecoveryMessage(null);
+        setSuccess('Your reset link is verified. Choose a new password.');
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setRecoveryReady(true);
+      } else if (event === 'SIGNED_OUT') {
+        setRecoveryReady(false);
+      }
     });
     return () => data.subscription.unsubscribe();
   }, [client]);
+
+  // A recovery link must establish a real Supabase session before a new
+  // password can be submitted. Also supports ?code= (PKCE) links.
+  useEffect(() => {
+    if (!client || mode !== 'recovery') return;
+    let cancelled = false;
+    (async () => {
+      const p = new URLSearchParams(window.location.search);
+      const code = p.get('code');
+      if (code) {
+        const { error } = await client.auth.exchangeCodeForSession(code);
+        if (cancelled) return;
+        if (error) { setRecoveryReady(false); setRecoveryMessage(`This reset link is invalid or expired: ${error.message}. Request a new one.`); return; }
+      }
+      const { data, error } = await client.auth.getSession();
+      if (cancelled) return;
+      if (error || !data.session) {
+        setRecoveryReady(false);
+        setRecoveryMessage('Waiting for your reset link to be verified. If you opened this page manually, use “Forgot password?” to request a new link.');
+      } else { setRecoveryReady(true); setRecoveryMessage(null); }
+    })();
+    return () => { cancelled = true; };
+  }, [client, mode]);
 
   useEffect(() => {
     if (!client || config.loading) return;
@@ -92,6 +127,7 @@ export function LoginForm() {
 
   const submitRecovery = async (e: FormEvent) => {
     e.preventDefault(); setError(null); setSuccess(null);
+    if (!recoveryReady) { setError('Your reset link has not been verified yet. Please wait, or request a new link.'); return; }
     const passwordError = validatePassword(password);
     if (passwordError) { setError(passwordError); return; }
     if (password !== confirm) { setError('The two passwords do not match.'); return; }
@@ -159,6 +195,7 @@ export function LoginForm() {
                 </form>
               )}
 
+              {mode === 'recovery' && !recoveryReady && <Notice tone="warning" className="mb-16"><AlertCircle size={14} /> {recoveryMessage ?? 'Verifying your password reset link…'}</Notice>}
               {mode === 'recovery' && (
                 <form onSubmit={submitRecovery} className="grid gap-16" noValidate>
                   <div className="field"><label className="label" htmlFor="new-password">New password</label>
@@ -166,7 +203,7 @@ export function LoginForm() {
                       <button type="button" className="input-toggle" onClick={() => setShow(s => !s)} aria-label="Toggle password visibility">{show ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></div>
                   <div className="field"><label className="label" htmlFor="confirm-password">Confirm new password</label>
                     <input id="confirm-password" className="input" type={show ? 'text' : 'password'} value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repeat your new password" /></div>
-                  <button className="btn btn-gold btn-block" disabled={busy} type="submit">{busy ? <><span className="spinner" /> Updating…</> : <>Update password <ArrowRight size={16} /></>}</button>
+                  <button className="btn btn-gold btn-block" disabled={busy || !recoveryReady} type="submit">{busy ? <><span className="spinner" /> Updating…</> : <>Update password <ArrowRight size={16} /></>}</button>
                   <button type="button" className="link-gold" style={{ justifyContent: 'center' }} onClick={() => setMode('signin')}><ArrowLeft size={14} /> Back to sign in</button>
                 </form>
               )}

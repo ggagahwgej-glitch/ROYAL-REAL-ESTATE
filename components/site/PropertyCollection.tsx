@@ -34,7 +34,7 @@ export function PropertyCollection({ heading = 'The Signature Collection', eyebr
         ) : result.items.length === 0 ? (
           <EmptyState icon={<Sparkles />} title="The collection is being prepared"
             description="No published residences are available yet. Once the owner publishes listings in the Owner Studio, they appear here automatically."
-            action={<Link href="/admin/properties" className="btn btn-outline btn-sm">Open Property Management</Link>} />
+            action={<Link href="/contact" className="btn btn-outline btn-sm">Speak to an advisor</Link>} />
         ) : (
           <>
             <div className="property-grid">
