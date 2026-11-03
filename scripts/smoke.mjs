@@ -92,6 +92,8 @@ try {
   const setup = await request('/sql/showcase-setup.sql');
   const setupSql = typeof setup.body === 'string' ? setup.body : '';
   check('One-paste showcase setup script is downloadable', setup.status === 200 && setupSql.includes('insert into public.properties'));
+  check('Setup script also removes foreign policies and revokes anon profile access',
+    setupSql.includes('do $policies$') && setupSql.includes('revoke all on public.profiles from anon'));
   check('Setup script seeds at least 20 residences',
     (setupSql.match(/\n    \('/g) ?? []).length >= 20, `${(setupSql.match(/\n    \('/g) ?? []).length} value rows`);
   check('Setup script preserves the old schema data', setupSql.includes('imperial_legacy_backup'));

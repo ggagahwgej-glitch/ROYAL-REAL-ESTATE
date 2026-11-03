@@ -153,6 +153,9 @@ begin
     execute 'grant all on public.inquiries to authenticated';
   end if;
   if to_regclass('public.profiles') is not null then
+    -- A different application's script may have granted anon access to
+    -- profiles.is_owner. Close that hole on every run.
+    execute 'revoke all on public.profiles from anon';
     execute 'grant select on public.profiles to authenticated';
   end if;
 exception when others then
@@ -363,6 +366,22 @@ alter table public.property_media enable row level security;
 alter table public.inquiries      enable row level security;
 alter table public.site_settings  enable row level security;
 
+-- A different application's setup script may have left permissive policies
+-- behind (for example an anon SELECT on profiles). Remove ALL policies on the
+-- five tables before installing ours, otherwise the extra policies survive
+-- and can expose private data even though ours look correct.
+do $policies$
+declare r record;
+begin
+  for r in
+    select policyname, tablename from pg_policies
+    where schemaname = 'public'
+      and tablename in ('profiles','properties','property_media','inquiries','site_settings')
+  loop
+    execute format('drop policy if exists %I on public.%I', r.policyname, r.tablename);
+  end loop;
+end $policies$;
+
 drop policy if exists "profiles: read own" on public.profiles;
 create policy "profiles: read own" on public.profiles
   for select to authenticated using (id = auth.uid());
@@ -409,6 +428,7 @@ grant usage on schema public to anon, authenticated;
 grant select on public.properties, public.property_media, public.site_settings to anon, authenticated;
 revoke all on public.inquiries from anon;
 grant insert on public.inquiries to anon;
+revoke all on public.profiles from anon;
 grant select on public.profiles to authenticated;
 grant all on public.properties, public.property_media, public.inquiries, public.site_settings to authenticated;
 grant usage, select on all sequences in schema public to anon, authenticated;

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ArrowRight, ArrowLeft, Database, ShieldCheck, Sparkles } from 'lucide-react';
 import { Emblem } from '@/components/brand/Emblem';
 import { ShowcaseSetupPanel } from '@/components/admin/ShowcaseSetupPanel';
+import { LiveSchemaCheck } from '@/components/admin/LiveSchemaCheck';
 
 /**
  * A public, no-index setup guide. It exists because /admin/configuration is
@@ -47,6 +48,23 @@ export default function SetupGuidePage() {
             <ShieldCheck size={22} className="gold" style={{ margin: '0 auto 12px' }} />
             <h2 className="h4">Owner stays private</h2>
             <p className="tiny muted mt-8">No password, secret key or service-role credential is stored in this repository. Run the SQL yourself in your Supabase dashboard.</p>
+          </div>
+        </div>
+
+        <LiveSchemaCheck />
+
+        <div className="notice notice-warning mb-24" style={{ marginTop: 24 }}>
+          <div>
+            <strong className="notice-title">Run exactly one file — supabase/showcase-setup.sql</strong>
+            <p className="tiny" style={{ lineHeight: 1.8 }}>
+              Use the <em>Copy setup SQL</em> button below, or download the same file from
+              <code> /sql/showcase-setup.sql</code>. Do not paste SQL from another project, tutorial
+              or chat into this Supabase instance: a different seed creates tables with different
+              column names (for example <code>status = 'Available'</code> and a key/value
+              <code> site_settings</code>), and this website then cannot read them. The live check
+              above turns red when that has happened. Your existing rows are backed up to
+              <code> imperial_legacy_*</code> tables before the rebuild.
+            </p>
           </div>
         </div>
 

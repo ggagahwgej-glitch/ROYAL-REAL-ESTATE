@@ -6,8 +6,8 @@
 |---|---|
 | `npm run typecheck` | TypeScript strict check across all app, lib and component code |
 | `npm run build` | Production build of all 24 routes, metadata routes, sitemap, robots, manifest |
-| `npm run test` | 82 unit + static security + regression assertions (configuration validation, key-role rejection, browser config persistence/import/export, exact hero copy, genuine-testimonial integrity, filtering, pagination, formatting, RLS schema assertions, no service-role key, no PIN system, **anon-inquiry no-representation insert, Google/OpenStreetMap map normalisation, open-redirect blocking, MIME inference, DB-first media deletion**) |
-| `npm run smoke` | 49 checks: all routes, exact hero copy/button labels, no fabricated testimonials, honest empty state, configuration endpoint rejects secret keys and unauthenticated publishes, DELETE on an unconfigured site does not false-500, downloadable RLS script is present; public `/setup` guide, one-paste SQL download and sitemap showcase slugs; robots/sitemap/manifest/favicon present |
+| `npm run test` | 85 unit + static security + regression assertions (configuration validation, key-role rejection, browser config persistence/import/export, exact hero copy, genuine-testimonial integrity, filtering, pagination, formatting, RLS schema assertions, no service-role key, no PIN system, **anon-inquiry no-representation insert, Google/OpenStreetMap map normalisation, open-redirect blocking, MIME inference, DB-first media deletion**) |
+| `npm run smoke` | 50 checks: all routes, exact hero copy/button labels, no fabricated testimonials, honest empty state, configuration endpoint rejects secret keys and unauthenticated publishes, DELETE on an unconfigured site does not false-500, downloadable RLS script is present; public `/setup` guide, one-paste SQL download and sitemap showcase slugs; robots/sitemap/manifest/favicon present |
 
 ## Live, project-dependent tests (require a real Supabase project)
 
@@ -37,7 +37,7 @@ provides **executable** tests instead of claims:
 ## Showcase mode (client demonstration)
 
 This build ships a labelled showcase so the example site is complete on first open. `npm run test`
-includes 16 dedicated assertions in `tests/showcase.test.ts` covering: at least 20 published
+includes 19 dedicated assertions in `tests/showcase.test.ts` covering: at least 20 published
 residences with unique slugs, ≥3 gallery images with exactly one cover each, ≥8 sample references
 with valid 1–5 ratings and `sample: true` on every one, no `AggregateRating` structured data,
 in-memory filter/search/sort/pagination parity, default-value-only settings merging, SQL/public

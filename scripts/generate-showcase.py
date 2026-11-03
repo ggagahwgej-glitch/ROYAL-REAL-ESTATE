@@ -666,6 +666,9 @@ begin
     execute 'grant all on public.inquiries to authenticated';
   end if;
   if to_regclass('public.profiles') is not null then
+    -- A different application's script may have granted anon access to
+    -- profiles.is_owner. Close that hole on every run.
+    execute 'revoke all on public.profiles from anon';
     execute 'grant select on public.profiles to authenticated';
   end if;
 exception when others then

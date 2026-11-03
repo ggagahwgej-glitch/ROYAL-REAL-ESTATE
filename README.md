@@ -67,7 +67,7 @@ supabase/                     schema.sql · storage.sql · owner-provisioning.sq
 public/
   brand/ sql/ images/         Static brand kit, SQL downloads, original photography
   public-config.json          Shared public bootstrap (pre-connected for this demo)
-tests/ scripts/               82 unit/security/regression tests + 49 live route/content smoke checks
+tests/ scripts/               85 unit/security/regression tests + 50 live route/content smoke checks
 ```
 
 ### Security model
@@ -172,6 +172,24 @@ case the rebuild was skipped, an index or policy failed, and anonymous reads wer
 (`42501 permission denied`). The corrected guard checks **every required column of all four
 content tables**, backs up the old rows, rebuilds the mismatched tables, and restores the minimum
 public privileges even if a previous run stopped halfway. No data is lost.
+
+### Use the live health check — not guesswork
+
+`/setup` now runs **six read-only anonymous GETs** against the connected project the moment it
+opens and shows a green/red verdict for: the properties shape, ≥20 `published` rows, the gallery
+shape, flat settings + reviews, and whether `profiles`/`inquiries` are private. Click **Re-check**
+after every SQL run. No password, secret key or write is involved.
+
+**Only one file is correct:** [`supabase/showcase-setup.sql`](supabase/showcase-setup.sql)
+(the same bytes are served at `/sql/showcase-setup.sql`). If the health check reports *"a
+different schema"*, a script from another project was pasted into this Supabase instance. That
+creates rows the website cannot read — for example `status = 'Available'` instead of
+`status = 'published'`, `sqft` instead of `area_sqft`, `url` instead of `storage_path`/`public_url`,
+and a key/value `site_settings` row instead of flat columns. It can also leave
+`profiles.is_owner` readable by anonymous visitors, which is a security defect. The corrected
+script backs those rows up, rebuilds the tables, removes foreign RLS policies and revokes
+anonymous access to `profiles`. If the SQL Editor shows an error, copy the exact error text —
+do not substitute a different script.
 
 The script is idempotent and does the following:
 

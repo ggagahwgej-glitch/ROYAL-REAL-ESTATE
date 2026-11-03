@@ -157,3 +157,33 @@ describe('legacy schema repair (regression)', () => {
     expect(sql).toContain('delete from public.property_media where storage_path like');
   });
 });
+
+describe('cross-project SQL contamination (regression)', () => {
+  const sql = read('supabase/showcase-setup.sql');
+  const schema = read('supabase/schema.sql');
+
+  it('removes foreign RLS policies that could expose owner profiles', () => {
+    // A different application's seed script created an anon-readable profiles
+    // table. Our named policies alone do not remove unknown policies.
+    expect(sql).toContain('do $policies$');
+    expect(sql).toContain('pg_policies');
+    expect(sql).toContain("execute format('drop policy if exists %I on public.%I'");
+  });
+
+  it('revokes anonymous access to profiles and keeps inquiries INSERT-only', () => {
+    expect(sql).toContain('revoke all on public.profiles from anon');
+    expect(sql).toContain('revoke all on public.inquiries from anon');
+    expect(sql).toContain('grant insert on public.inquiries to anon');
+    expect(schema).toContain('revoke all on public.profiles from anon');
+    expect(read('public/sql/schema.sql')).toBe(schema);
+  });
+
+  it('ships a read-only live health check on the public setup guide', () => {
+    const page = read('app/(site)/setup/page.tsx');
+    expect(page).toContain('LiveSchemaCheck');
+    const check = read('components/admin/LiveSchemaCheck.tsx');
+    expect(check).toContain("'profiles?select=is_owner&limit=1'");
+    expect(check).toContain('Anonymous GETs only');
+    expect(check).not.toMatch(/service_role|sb_secret_/i);
+  });
+});
