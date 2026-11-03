@@ -6,8 +6,8 @@
 |---|---|
 | `npm run typecheck` | TypeScript strict check across all app, lib and component code |
 | `npm run build` | Production build of all 24 routes, metadata routes, sitemap, robots, manifest |
-| `npm run test` | 78 unit + static security + regression assertions (configuration validation, key-role rejection, browser config persistence/import/export, exact hero copy, genuine-testimonial integrity, filtering, pagination, formatting, RLS schema assertions, no service-role key, no PIN system, **anon-inquiry no-representation insert, Google/OpenStreetMap map normalisation, open-redirect blocking, MIME inference, DB-first media deletion**) |
-| `npm run smoke` | 48 checks: all routes, exact hero copy/button labels, no fabricated testimonials, honest empty state, configuration endpoint rejects secret keys and unauthenticated publishes, DELETE on an unconfigured site does not false-500, downloadable RLS script is present; public `/setup` guide, one-paste SQL download and sitemap showcase slugs; robots/sitemap/manifest/favicon present |
+| `npm run test` | 82 unit + static security + regression assertions (configuration validation, key-role rejection, browser config persistence/import/export, exact hero copy, genuine-testimonial integrity, filtering, pagination, formatting, RLS schema assertions, no service-role key, no PIN system, **anon-inquiry no-representation insert, Google/OpenStreetMap map normalisation, open-redirect blocking, MIME inference, DB-first media deletion**) |
+| `npm run smoke` | 49 checks: all routes, exact hero copy/button labels, no fabricated testimonials, honest empty state, configuration endpoint rejects secret keys and unauthenticated publishes, DELETE on an unconfigured site does not false-500, downloadable RLS script is present; public `/setup` guide, one-paste SQL download and sitemap showcase slugs; robots/sitemap/manifest/favicon present |
 
 ## Live, project-dependent tests (require a real Supabase project)
 
@@ -37,11 +37,11 @@ provides **executable** tests instead of claims:
 ## Showcase mode (client demonstration)
 
 This build ships a labelled showcase so the example site is complete on first open. `npm run test`
-includes 12 dedicated assertions in `tests/showcase.test.ts` covering: at least 20 published
+includes 16 dedicated assertions in `tests/showcase.test.ts` covering: at least 20 published
 residences with unique slugs, ≥3 gallery images with exactly one cover each, ≥8 sample references
 with valid 1–5 ratings and `sample: true` on every one, no `AggregateRating` structured data,
 in-memory filter/search/sort/pagination parity, default-value-only settings merging, SQL/public
-copy parity, schema + storage + RLS installation, and absence of secret credentials.
+copy parity, schema + storage + RLS installation, all-column legacy-schema detection, privilege repair after an interrupted run, and absence of secret credentials.
 
 `tests/content.test.ts` runs with `NEXT_PUBLIC_SHOWCASE=0` (via `vi.hoisted`) so the original
 live-mode guarantees still hold: no invented quotes, an honest empty state, malformed JSONB
@@ -49,6 +49,14 @@ rejected and database errors surfaced.
 
 To test the **real** database path, run `supabase/showcase-setup.sql` in the Supabase SQL Editor
 once, then re-run `/admin/configuration → Run diagnostics` and `supabase/rls-tests.sql`.
+
+## SQL syntax validation
+
+`scripts/validate-sql.py` parses every `supabase/*.sql` file with the real PostgreSQL grammar
+(optional dev dependency: `python3 -m venv .venv && .venv/bin/pip install pglast`). It validates
+both the outer statements and every PL/pgSQL function/`DO` block, including dollar-quoted bodies,
+without connecting to a database. All five scripts currently report `ALL SQL VALID`. Run it before
+pasting any script into the Supabase SQL Editor.
 
 ## Not yet verified
 

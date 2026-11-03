@@ -43,7 +43,7 @@ export function ShowcaseSetupPanel({ configuredUrl }: { configuredUrl?: string }
       </div>
 
       <ol className="showcase-setup-steps">
-        <li><span>01</span><div><strong>Open the Supabase SQL Editor</strong><p>In your Supabase dashboard choose <em>SQL Editor → New query</em>. No service-role key is needed.</p></div></li>
+        <li><span>01</span><div><strong>Open the Supabase SQL Editor</strong><p>In your Supabase dashboard choose <em>SQL Editor → New query</em>. No service-role key is needed. If an earlier run stopped halfway, this corrected script detects and repairs that state automatically.</p></div></li>
         <li><span>02</span><div><strong>Paste the setup script</strong><p>Click “Copy setup SQL” below, paste it, then press <em>Run</em>. It aligns the schema, installs RLS and Storage policies, provisions the first Auth user as owner, and inserts the showcase content.</p></div></li>
         <li><span>03</span><div><strong>Reload this Studio</strong><p>Real database rows replace the labelled showcase automatically. Properties, media and references become fully editable here.</p></div></li>
       </ol>

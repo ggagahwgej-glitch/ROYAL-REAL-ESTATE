@@ -521,12 +521,10 @@ def build_sql():
 --
 -- WHAT THIS FIXES
 --   The project was created for a DIFFERENT application ("Aurum Estates").
---   Its tables do not match this website: `properties` is missing
---   city / category / listing_type / featured / availability / area_sqft;
---   `property_media` is missing kind / public_url / is_cover / position;
---   `site_settings` uses nested JSONB instead of flat site_* columns.
---   Reading those tables from this app produces PostgREST 42703 errors,
---   blank galleries and default branding.
+--   Its `properties`, `property_media`, `inquiries` and `site_settings`
+--   tables have a different shape. `create table if not exists` would
+--   silently KEEP that shape, so section 0 verifies EVERY column the
+--   schema, policies and seed need before deciding to rebuild.
 --
 -- DATA SAFETY
 --   Before replacing anything, the existing rows of every affected table
@@ -544,22 +542,50 @@ def build_sql():
 -- ==================================================================
 
 -- ---------------------------------------------------------------- 0. guard
-do $$
+-- A half-migrated project is worse than an empty one. Check ALL required
+-- columns of all four content tables, not just one sentinel column.
+do $guard$
 declare
-  mismatched boolean;
+  mismatched boolean := false;
   tbl text;
 begin
-  select
-    exists (select 1 from information_schema.tables
-            where table_schema = 'public' and table_name = 'properties')
-    and not exists (select 1 from information_schema.columns
-            where table_schema = 'public' and table_name = 'properties' and column_name = 'category')
-    into mismatched;
+  with needed(t, cols) as (
+    values
+      ('properties', array[
+        'id','owner_id','slug','title','subtitle','description','listing_type',
+        'category','status','availability','price','currency','price_period',
+        'location','city','address','country','bedrooms','bathrooms','area_sqft',
+        'lot_sqft','year_built','featured','amenities','features','latitude',
+        'longitude','map_url','meta_title','meta_description','created_at','updated_at']),
+      ('property_media', array[
+        'id','property_id','kind','storage_path','public_url','position',
+        'is_cover','alt_text','mime_type','file_size','created_at']),
+      ('inquiries', array[
+        'id','property_id','name','email','phone','message','status','source',
+        'created_at','updated_at']),
+      ('site_settings', array[
+        'id','business_name','tagline','logo_url','favicon_url','contact_email',
+        'contact_phone','whatsapp','address','hero_heading','hero_subheading',
+        'hero_image','social','footer_text','footer_note','seo_title',
+        'seo_description','testimonials','theme','updated_at'])
+  )
+  select coalesce(bool_or(
+    to_regclass('public.' || n.t) is not null
+    and exists (
+      select 1 from unnest(n.cols) as c(col)
+      where not exists (
+        select 1 from information_schema.columns ic
+        where ic.table_schema = 'public'
+          and ic.table_name = n.t
+          and ic.column_name = c.col
+      )
+    )
+  ), false) into mismatched
+  from needed n;
 
   if mismatched then
-    -- Keep a copy of the previous application's data.
-    if not exists (select 1 from information_schema.tables
-                   where table_schema = 'public' and table_name = 'imperial_legacy_backup') then
+    -- Keep a copy of the previous application's data, once only.
+    if to_regclass('public.imperial_legacy_backup') is null then
       for tbl in select unnest(array['properties','property_media','inquiries','site_settings','profiles'])
       loop
         if to_regclass('public.' || tbl) is not null then
@@ -576,11 +602,27 @@ begin
     execute 'drop table if exists public.inquiries cascade';
     execute 'drop table if exists public.properties cascade';
     execute 'drop table if exists public.site_settings cascade';
+    raise notice 'Imperial Royal: legacy schema detected. Old rows backed up to imperial_legacy_* and content tables rebuilt.';
   end if;
 
-  -- Align an existing profiles table from the previous application.
-  if exists (select 1 from information_schema.tables
-             where table_schema = 'public' and table_name = 'profiles') then
+  -- profiles is referenced by is_owner() and the auth.users trigger. Only a
+  -- table with no uuid `id` must be rebuilt; otherwise align it in place.
+  if to_regclass('public.profiles') is not null and (
+       not exists (select 1 from information_schema.columns
+                   where table_schema = 'public' and table_name = 'profiles' and column_name = 'id')
+       or exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'profiles'
+                    and column_name = 'id' and data_type <> 'uuid')) then
+    execute 'drop table if exists public.profiles cascade';
+    execute $ddl$create table public.profiles (
+      id uuid primary key references auth.users(id) on delete cascade,
+      email text not null default '', full_name text,
+      is_owner boolean not null default false,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now())$ddl$;
+  end if;
+
+  if to_regclass('public.profiles') is not null then
     alter table public.profiles add column if not exists email text;
     alter table public.profiles add column if not exists full_name text;
     alter table public.profiles add column if not exists is_owner boolean not null default false;
@@ -597,7 +639,38 @@ begin
       execute format('alter table public.profiles alter column %I drop not null', tbl);
     end loop;
   end if;
-end $$;
+end $guard$;
+
+-- ------------------------------------------------- 0b. privilege repair
+-- An interrupted earlier run may have enabled RLS without reaching the
+-- GRANT statements. Restore the minimum public privileges whenever the
+-- tables exist, so the site is never locked out by a partial migration.
+do $grants$
+begin
+  execute 'grant usage on schema public to anon, authenticated';
+  if to_regclass('public.properties') is not null then
+    execute 'grant select on public.properties to anon, authenticated';
+    execute 'grant all on public.properties to authenticated';
+  end if;
+  if to_regclass('public.property_media') is not null then
+    execute 'grant select on public.property_media to anon, authenticated';
+    execute 'grant all on public.property_media to authenticated';
+  end if;
+  if to_regclass('public.site_settings') is not null then
+    execute 'grant select on public.site_settings to anon, authenticated';
+    execute 'grant all on public.site_settings to authenticated';
+  end if;
+  if to_regclass('public.inquiries') is not null then
+    execute 'revoke all on public.inquiries from anon';
+    execute 'grant insert on public.inquiries to anon';
+    execute 'grant all on public.inquiries to authenticated';
+  end if;
+  if to_regclass('public.profiles') is not null then
+    execute 'grant select on public.profiles to authenticated';
+  end if;
+exception when others then
+  raise notice 'Imperial Royal: privilege repair deferred (%)', sqlerrm;
+end $grants$;
 
 """
 

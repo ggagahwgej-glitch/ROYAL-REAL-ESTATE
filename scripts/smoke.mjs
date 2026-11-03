@@ -95,6 +95,9 @@ try {
   check('Setup script seeds at least 20 residences',
     (setupSql.match(/\n    \('/g) ?? []).length >= 20, `${(setupSql.match(/\n    \('/g) ?? []).length} value rows`);
   check('Setup script preserves the old schema data', setupSql.includes('imperial_legacy_backup'));
+  check('Setup script detects every legacy column mismatch and repairs privileges',
+    setupSql.includes('with needed(t, cols)') && setupSql.includes("'listing_type'")
+    && setupSql.includes("'storage_path'") && setupSql.includes('grant select on public.properties to anon, authenticated'));
 
   const sitemap = await request('/sitemap.xml');
   check('Sitemap includes showcase residence pages',

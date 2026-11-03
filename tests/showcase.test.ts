@@ -108,3 +108,52 @@ describe('shared public configuration', () => {
     expect(JSON.stringify(cfg)).not.toMatch(/sb_secret_|service_role|password/i);
   });
 });
+
+describe('legacy schema repair (regression)', () => {
+  const sql = read('supabase/showcase-setup.sql');
+  const guard = sql.slice(sql.indexOf('do $guard$'), sql.indexOf('end $guard$;'));
+  const repair = sql.slice(sql.indexOf('do $grants$'), sql.indexOf('end $grants$;'));
+
+  it('checks EVERY required column of all four content tables, not one sentinel', () => {
+    // The original bug: a legacy table that happened to have `category` was
+    // treated as correct, so `create table if not exists` kept a broken shape
+    // and the script aborted on the first index referring to `listing_type`.
+    expect(guard).toContain('with needed(t, cols)');
+    for (const table of ['properties', 'property_media', 'inquiries', 'site_settings']) {
+      expect(guard).toContain(`'${table}', array[`);
+    }
+    for (const col of ['listing_type', 'availability', 'area_sqft', 'storage_path',
+                       'public_url', 'is_cover', 'position', 'testimonials',
+                       'hero_heading', 'source']) {
+      expect(guard).toContain(`'${col}'`);
+    }
+    expect(guard).toContain('information_schema.columns');
+    expect(guard).toContain('unnest(n.cols) as c(col)');
+  });
+
+  it('backs up once, then drops mismatched children before parents', () => {
+    expect(guard).toContain("to_regclass('public.imperial_legacy_backup') is null");
+    expect(guard).toContain("'imperial_legacy_' || tbl");
+    expect(guard.indexOf('drop table if exists public.property_media')).toBeLessThan(
+      guard.indexOf('drop table if exists public.properties'));
+    expect(guard).toContain('drop table if exists public.site_settings cascade');
+  });
+
+  it('repairs an interrupted run by restoring anon privileges', () => {
+    expect(repair).toContain('grant usage on schema public to anon, authenticated');
+    expect(repair).toContain('grant select on public.properties to anon, authenticated');
+    expect(repair).toContain('grant select on public.property_media to anon, authenticated');
+    expect(repair).toContain('grant select on public.site_settings to anon, authenticated');
+    expect(repair).toContain('revoke all on public.inquiries from anon');
+    expect(repair).toContain('exception when others then');
+  });
+
+  it('keeps all dollar-quoted blocks balanced and re-runs safely', () => {
+    for (const tag of ['$guard$', '$grants$', '$ddl$', '$$']) {
+      expect(sql.split(tag).length - 1).toBe(2 * Math.floor((sql.split(tag).length - 1) / 2));
+    }
+    expect(sql).toContain('create table if not exists public.properties');
+    expect(sql).toContain('on conflict (slug) do update set');
+    expect(sql).toContain('delete from public.property_media where storage_path like');
+  });
+});

@@ -67,7 +67,7 @@ supabase/                     schema.sql · storage.sql · owner-provisioning.sq
 public/
   brand/ sql/ images/         Static brand kit, SQL downloads, original photography
   public-config.json          Shared public bootstrap (pre-connected for this demo)
-tests/ scripts/               78 unit/security/regression tests + 47 live route/content smoke checks
+tests/ scripts/               82 unit/security/regression tests + 49 live route/content smoke checks
 ```
 
 ### Security model
@@ -165,6 +165,14 @@ brought into line.
    [`supabase/showcase-setup.sql`](supabase/showcase-setup.sql)) → paste → **Run**.
 4. Reload the Owner Studio and sign in at `/admin/login`.
 
+**If an earlier attempt failed:** just re-run this corrected script. The first version only
+checked whether `properties` had a `category` column; a legacy table can have `category` and
+`city` yet still be missing `listing_type`, `storage_path`, `public_url` and `is_cover`. In that
+case the rebuild was skipped, an index or policy failed, and anonymous reads were left blocked
+(`42501 permission denied`). The corrected guard checks **every required column of all four
+content tables**, backs up the old rows, rebuilds the mismatched tables, and restores the minimum
+public privileges even if a previous run stopped halfway. No data is lost.
+
 The script is idempotent and does the following:
 
 * **Preserves data** — copies the old rows to `public.imperial_legacy_*` tables before replacing
@@ -227,6 +235,7 @@ uploads found and corrected the following concrete defects. Each has a regressio
 * The first owner-verified publish binds the website to that Supabase project; afterwards the
   project URL cannot be repointed from a browser session (only the publishable key can rotate).
   See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
+* `scripts/validate-sql.py` parses every SQL script with the real PostgreSQL grammar (optional `pip install pglast`); all five currently report `ALL SQL VALID`.
 * Built on Next.js `15.5.28` (patched for CVE-2025-66478). `data/public-config.json` is a runtime
   file on writable Node/VPS deployments; on read-only serverless hosting the API returns a
   downloadable artifact and explicit redeploy instructions rather than a false success.

@@ -246,7 +246,8 @@ create policy "settings: owner update" on public.site_settings
 -- Grants: RLS still governs every row.
 grant usage on schema public to anon, authenticated;
 grant select on public.properties, public.property_media, public.site_settings to anon, authenticated;
-grant insert on public.inquiries to anon, authenticated;
+revoke all on public.inquiries from anon;
+grant insert on public.inquiries to anon;
 grant select on public.profiles to authenticated;
 grant all on public.properties, public.property_media, public.inquiries, public.site_settings to authenticated;
 grant usage, select on all sequences in schema public to anon, authenticated;
