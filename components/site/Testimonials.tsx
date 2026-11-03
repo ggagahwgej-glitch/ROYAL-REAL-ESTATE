@@ -1,31 +1,54 @@
 'use client';
 import Link from 'next/link';
-import { ArrowUpRight, Quote } from 'lucide-react';
+import { ArrowUpRight, Quote, Sparkles } from 'lucide-react';
 import { Reveal } from '@/components/ui/Reveal';
+import { Stars } from '@/components/ui/Stars';
 import { useSiteSettings } from '@/lib/hooks/useSiteData';
+import { SHOWCASE_ENABLED } from '@/lib/showcase';
 
 function initialsOf(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('') || '—';
 }
 
 /**
- * Genuine client testimonials only. Quotes are owner-published records stored
- * in site_settings.testimonials (Supabase, RLS-protected). No fabricated names,
- * quotes or "published with permission" claims are ever rendered here.
+ * Owner-published references stored in site_settings.testimonials.
+ *
+ * In SHOWCASE mode, clearly-labelled SAMPLE references are shown for this
+ * client demonstration. They are never described as genuine endorsements and
+ * no AggregateRating structured data is emitted for them.
  */
 export function Testimonials() {
   const { settings, loading, configured } = useSiteSettings();
   const quotes = settings.testimonials ?? [];
-  // On an unconfigured / server render there are no records to wait for, so
-  // show the honest statement instead of a skeleton that never resolves.
   const showSkeleton = loading && configured;
+  const sampleMode = SHOWCASE_ENABLED && quotes.length > 0 && quotes.every(q => q.sample === true);
+  const rated = quotes.filter(q => typeof q.rating === 'number' && q.rating > 0);
+  const average = rated.length
+    ? (rated.reduce((n, q) => n + Number(q.rating), 0) / rated.length).toFixed(1)
+    : null;
 
   return (
-    <section className="section" id="testimonials">
+    <section className="section section-alt" id="testimonials">
       <div className="container">
         <div className="section-head">
-          <Reveal><p className="eyebrow">In their words</p><h2 className="h2 mt-16">Relationships that endure.</h2></Reveal>
-          <p className="small muted max-w-600">Client references are published only with written permission. Every quote shown here is a record entered by the owner in the Owner Studio.</p>
+          <div>
+            <Reveal><p className="eyebrow">In their words</p><h2 className="h2 mt-16">Relationships that endure.</h2></Reveal>
+            {sampleMode && average && <Reveal delay={1}><div className="rating-summary mt-16">
+              <Stars value={Math.round(Number(average))} size={16} showValue />
+              <span className="tiny muted">{average} average · {quotes.length} showcase references</span>
+            </div></Reveal>}
+          </div>
+          <div className="max-w-600">
+            <p className="small muted">
+              {sampleMode
+                ? 'A considered collection of illustrative references, prepared to demonstrate how owner-published testimonials and star ratings appear across the site.'
+                : 'Client references are published only with written permission. Every quote shown here is a record entered by the owner in the Owner Studio.'}
+            </p>
+            {sampleMode && <p className="tiny muted mt-8" style={{ opacity: .78 }}>
+              <Sparkles size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
+              Sample content for this demonstration — not genuine client endorsements.
+            </p>}
+          </div>
         </div>
         {showSkeleton ? (
           <div className="grid grid-3">{[0, 1, 2].map(i => <div key={i} className="skeleton" style={{ height: 260 }} />)}</div>
@@ -47,10 +70,12 @@ export function Testimonials() {
                 <div className="testimonial" style={{ height: '100%' }}>
                   <span className="quote-mark">“</span>
                   <Quote size={18} className="gold mb-16" />
-                  <p>{t.quote}</p>
+                  <Stars value={t.rating} size={14} />
+                  <p className="mt-16">{t.quote}</p>
                   <div className="testimonial-foot">
                     <div className="avatar">{t.initials || initialsOf(t.name)}</div>
                     <div><p className="small" style={{ color: 'var(--ivory)', fontWeight: 600 }}>{t.name}</p><p className="tiny muted">{t.role}</p></div>
+                    {t.sample && <span className="showcase-tag">Sample</span>}
                   </div>
                 </div>
               </Reveal>

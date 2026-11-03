@@ -8,6 +8,7 @@ import { getServerSupabaseClient } from '@/lib/supabase/factory';
 import { getMediaForProperty, getPublicPropertyBySlug } from '@/lib/supabase/queries';
 import { truncate } from '@/lib/utils';
 import { getSiteUrl } from '@/lib/config/site-url';
+import { SHOWCASE_ENABLED, SHOWCASE_MEDIA, findShowcaseBySlug } from '@/lib/showcase';
 export const revalidate = 60;
 
 type Params = { params: Promise<{ slug: string }> };
@@ -17,8 +18,14 @@ async function serverProperty(slug: string): Promise<{ property: Awaited<ReturnT
     const { config } = await getServerConfig();
     if (!config) return { property: null, error: null };
     const res = await getPublicPropertyBySlug(getServerSupabaseClient(config), slug);
+    if (!res.data && SHOWCASE_ENABLED) {
+      const sample = findShowcaseBySlug(slug);
+      if (sample) return { property: sample, error: null };
+    }
     return { property: res.data, error: res.error };
-  } catch { return { property: null, error: 'unavailable' }; }
+  } catch {
+    return SHOWCASE_ENABLED ? { property: findShowcaseBySlug(slug), error: null } : { property: null, error: 'unavailable' };
+  }
 }
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
@@ -36,7 +43,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     const { config } = await getServerConfig();
     if (config) {
       const media = await getMediaForProperty(getServerSupabaseClient(config), p.id);
-      image = media.data?.find(m => m.is_cover && m.kind === 'image')?.public_url ?? media.data?.find(m => m.kind === 'image')?.public_url;
+      const rows = [...(SHOWCASE_ENABLED ? SHOWCASE_MEDIA.filter(m => m.property_id === p.id) : []), ...(media.data ?? [])];
+      image = rows.find(m => m.is_cover && m.kind === 'image')?.public_url ?? rows.find(m => m.kind === 'image')?.public_url;
     }
   } catch { /* metadata still renders without an image */ }
   return {

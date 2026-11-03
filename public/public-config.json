@@ -1,7 +1,8 @@
 {
   "schemaVersion": 1,
-  "url": "",
-  "anonKey": "",
+  "source": "imperial-royal-showcase",
+  "url": "https://aybxmtqozjkakhdefyqq.supabase.co",
+  "anonKey": "sb_publishable_zp0oeSg5cvzQOTuKfxGcpg_ci6sP_pd",
   "publishedAt": null,
-  "note": "Shared public bootstrap configuration. Publishable/anon keys only. NEVER place a service-role key here."
+  "note": "Shared public bootstrap configuration. Contains a PUBLIC publishable key only — never a service-role or secret key. Row Level Security protects all data. This project is a client demonstration; rotate the key in Supabase if this example is made public."
 }

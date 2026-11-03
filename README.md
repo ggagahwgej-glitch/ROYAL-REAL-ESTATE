@@ -16,9 +16,15 @@ npm install
 npm run dev            # http://localhost:3000  (bound to 0.0.0.0 for live preview)
 ```
 
-The site works immediately with an intentional, professional **setup state**. To connect real data:
+This build is a **client demonstration**: it is pre-connected to the supplied Supabase project and
+displays a labelled showcase of 20 residences, 60 gallery images and 8 sample references with star
+ratings on first load — no setup required to see the full experience. To make those same records
+editable in the Owner Studio, run the one-paste SQL below ([details](#client-demonstration--one-paste-setup)).
 
-1. Open `/admin/configuration` → **Backend Configuration**.
+For a fresh production client (no demonstration content), the site shows an intentional professional
+**setup state**. To connect real data:
+
+1. Open `/setup` (always reachable) or `/admin/configuration` when no shared config is published yet.
 2. Enter your Supabase **Project URL** and **Publishable key / legacy anon key**.
 3. **Test Connection** → **Save Configuration** (saved in this browser).
 4. Run `supabase/schema.sql`, `supabase/storage.sql`, `supabase/owner-provisioning.sql` in the
@@ -49,18 +55,19 @@ app/
   api/public-config/          Public bootstrap config (GET) + owner-gated publish (POST/DELETE)
   sitemap.ts robots.ts manifest.ts icon.svg
 components/
-  brand/                      Original royal golden emblem + 7 brand lockups
+  brand/                      Refined gold-foil IR monogram + 7 brand lockups
   site/ admin/ ui/            Shared design-system components
 lib/
   config/                     ONE dynamic configuration manager (+ server reader, validation)
   supabase/                   ONE client factory, queries, storage
   auth/                       Supabase Auth + owner verification
   properties/ hooks/ diagnostics.ts
-supabase/                     schema.sql · storage.sql · owner-provisioning.sql · rls-tests.sql
+  showcase.ts maps.ts          Demonstration catalogue + Google Maps normaliser
+supabase/                     schema.sql · storage.sql · owner-provisioning.sql · rls-tests.sql · showcase-setup.sql
 public/
   brand/ sql/ images/         Static brand kit, SQL downloads, original photography
-  public-config.json          Shared public bootstrap template
-tests/ scripts/               66 unit/security/regression tests + 41 live route/content smoke checks
+  public-config.json          Shared public bootstrap (pre-connected for this demo)
+tests/ scripts/               78 unit/security/regression tests + 47 live route/content smoke checks
 ```
 
 ### Security model
@@ -118,6 +125,61 @@ Canonical origins are derived from the incoming request host, so no environment 
 needed for SEO (`NEXT_PUBLIC_SITE_URL` is an optional override).
 Admin routes carry `noindex, nofollow, nocache`.
 
+## Client demonstration & one-paste setup
+
+Because this website is an **example to show clients how the product looks and works**, it ships
+with a clearly labelled showcase catalogue. On first open you will see:
+
+| Item | Count | Where it appears |
+|---|---|---|
+| Residences | **20** | Homepage collection, `/properties`, `/buy`, `/rent`, `/categories`, detail pages, sitemap and Owner Studio → Properties |
+| Gallery images | **60** | Property cards, lightboxes, detail galleries and Owner Studio → Media |
+| Sample references | **8** | Homepage testimonials section with **gold star ratings**, Owner Studio → Website settings → Testimonials |
+| Brand kit | refined gold-foil **IR** monogram | Header, footer, favicon, hero badge, `public/brand/*` |
+
+Everything is marked *Showcase* / *Sample*. No `AggregateRating` structured data is emitted for the
+sample references, and the site states plainly that they are illustrative, not genuine endorsements.
+Set `NEXT_PUBLIC_SHOWCASE=0` to turn showcase mode off completely; once real rows exist in Supabase,
+the showcase disappears automatically and owner-published content takes precedence.
+
+### Live check of the supplied project
+
+The project URL and publishable key **work** — REST `/rest/v1/` and Auth settings respond correctly.
+But live inspection found that the database was built for a **different application** ("Aurum
+Estates"): `properties` has no `city`, `category`, `listing_type`, `featured`, `availability` or
+`area_sqft`; `property_media` has no `kind`, `public_url`, `is_cover` or `position`; and
+`site_settings` uses nested JSONB (`branding`, `contact`, `website`) instead of the flat columns
+this app reads. `inquiries` and `profiles` are correctly locked down for anonymous visitors.
+
+Without alignment those mismatches produce PostgREST `42703` errors, blank galleries and default
+branding. This is why the showcase fallback exists: the site looks complete while the schema is
+brought into line.
+
+### Fix it in one paste
+
+1. Supabase Dashboard → **SQL Editor → New query**.
+2. Open **`/setup`** — a public, no-index setup guide that is always reachable. Once a shared
+   config exists, `/admin/configuration` is correctly locked behind a verified owner session, and
+   the owner flag itself is created by this script, so `/setup` is the bootstrap entry point.
+3. Click **Copy setup SQL** (or download
+   [`supabase/showcase-setup.sql`](supabase/showcase-setup.sql)) → paste → **Run**.
+4. Reload the Owner Studio and sign in at `/admin/login`.
+
+The script is idempotent and does the following:
+
+* **Preserves data** — copies the old rows to `public.imperial_legacy_*` tables before replacing
+  anything (once only).
+* Installs the exact schema, constraints, triggers, RLS policies and Storage buckets this app needs.
+* Provisions the first Auth user as the verified owner (`profiles.is_owner`).
+* Seeds 20 residences, 60 gallery images, branding/hero settings and 8 rated sample references.
+* Prints a verification notice with the resulting counts.
+
+> **Heads-up:** replacing the schema will stop any *other* app still pointing at this project from
+> working. The old data is retained in the `imperial_legacy_*` tables. Remove the showcase records
+> from the Owner Studio before using this project for real clients.
+
+---
+
 ## Bug-fix pass ( November 2026 )
 
 A systematic review of the public site, Owner Studio, Supabase layer, listing flow, maps and
@@ -138,19 +200,33 @@ uploads found and corrected the following concrete defects. Each has a regressio
 
 ## Honest scope notes
 
-* No live Supabase project was supplied, so **live database / Auth / Storage / upload operations
-  could not be executed here**. The application ships executable live diagnostics
-  (`/admin/configuration → Run diagnostics`) and `supabase/rls-tests.sql` for that verification.
-  See [`docs/TESTING.md`](docs/TESTING.md) for the complete manual checklist.
-* Property listings and client testimonials are never faked: with no backend they are replaced by
-  a setup/empty state. Testimonials are real, owner-published records in
-  `site_settings.testimonials` (Website settings → Testimonials); the homepage states that
-  references are shared in confidence until genuine quotes with written permission are published.
-  The architectural photography and editorial brand copy are static marketing assets.
+* **Live project verified, not yet modified.** The supplied URL and publishable key were checked
+  live: the project is up, REST and Auth respond, and anonymous reads of `inquiries` / `profiles`
+  are correctly denied. The schema mismatch described above is a real, confirmed finding.
+* **I could not execute the SQL for you.** This sandbox can reach the project only through a
+  read-only page fetcher; direct network access and the Supabase SQL Editor API are not available.
+  Writing rows, creating Storage buckets, running RLS tests and provisioning the owner therefore
+  require the one paste above. I did not use or store the account password you shared.
+* **Please rotate that password.** It was pasted into a chat transcript in plain text. Change it in
+  Supabase Authentication → Users. The publishable key in `public/public-config.json` is designed
+  to be public and is safe there; a service-role or secret key is never accepted by this app.
+* **Sample content is deliberately fake.** The 20 residences, 60 images and 8 star-rated
+  references are illustrative demonstration records, explicitly labelled as such on the public
+  site and in the Owner Studio. In live mode, testimonials remain real, owner-published records in
+  `site_settings.testimonials` with written client permission, and no ratings are invented.
+* **"16K" is not a practical web format.** A true 16K still is ~130 megapixels and hundreds of
+  megabytes per image; a page of them would never load on mobile. The generated photography here
+  is 1376×768, graded for high dynamic range and delivered through Next.js responsive image
+  optimization (`next/image`, AVIF/WebP where supported), which is what actually produces a crisp,
+  fast, luxurious result at every screen size.
+* **Browser rendering was not automated.** No Chromium/Playwright runtime is available in this
+  sandbox, so visual, hydrated-form, mobile-width and Google Maps iframe checks still need a quick
+  manual pass with the checklist in [`docs/TESTING.md`](docs/TESTING.md). The app ships executable
+  live diagnostics (`/admin/configuration → Run diagnostics`) and `supabase/rls-tests.sql`.
+  The `/setup` guide is linked from the sign-in page and from every owner-guard error screen.
 * The first owner-verified publish binds the website to that Supabase project; afterwards the
   project URL cannot be repointed from a browser session (only the publishable key can rotate).
-  Publish immediately after deployment. See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
-* Built on Next.js `15.5.28` (patched for CVE-2025-66478).
-* `data/public-config.json` is a runtime file on writable Node/VPS deployments. On read-only
-  serverless hosting the API returns a downloadable artifact and explicit redeploy instructions
-  rather than a false success.
+  See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
+* Built on Next.js `15.5.28` (patched for CVE-2025-66478). `data/public-config.json` is a runtime
+  file on writable Node/VPS deployments; on read-only serverless hosting the API returns a
+  downloadable artifact and explicit redeploy instructions rather than a false success.

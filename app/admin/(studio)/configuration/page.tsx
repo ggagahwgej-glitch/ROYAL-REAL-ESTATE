@@ -18,8 +18,10 @@ import { maskKey, validateConfig } from '@/lib/config/validation';
 import { runDiagnostics, type DiagnosticsReport } from '@/lib/diagnostics';
 import { formatDate } from '@/lib/utils';
 import { getOwnerAccessToken } from '@/lib/auth/owner';
+import { ShowcaseSetupPanel } from '@/components/admin/ShowcaseSetupPanel';
 
 const SQL_FILES = [
+  { file: 'showcase-setup.sql', label: '0 · ONE-PASTE showcase setup (recommended)', note: 'Aligns the live schema, installs RLS + Storage, provisions the owner and seeds 20 residences with sample references.' },
   { file: 'schema.sql', label: '1 · Database schema, constraints & RLS policies', note: 'Tables, indexes, validation and all Row Level Security policies.' },
   { file: 'storage.sql', label: '2 · Storage buckets & storage policies', note: 'property-media, branding and owner-private buckets.' },
   { file: 'owner-provisioning.sql', label: '3 · Secure owner provisioning', note: 'One-time administrative step to grant the owner privilege.' },
@@ -157,6 +159,8 @@ export default function ConfigurationPage() {
           <span className="badge badge-gold"><LockKeyhole size={11} /> No service-role key</span>
         </div>
       </div>
+
+      <ShowcaseSetupPanel configuredUrl={config.config?.url} />
 
       {feedback && <Notice tone={feedback.tone === 'warning' ? 'warning' : feedback.tone} title={feedback.title}>{feedback.text}</Notice>}
 

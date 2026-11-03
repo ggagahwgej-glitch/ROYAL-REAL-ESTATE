@@ -214,7 +214,7 @@ export function LoginForm() {
         </div>
         <div className="flex between center gap-12 mt-24 wrap tiny muted">
           <Link href="/" className="link-gold" style={{ fontSize: 10 }}><ArrowLeft size={13} /> Back to website</Link>
-          <Link href="/admin/configuration" className="link-gold" style={{ fontSize: 10 }}><Database size={13} /> Backend Configuration</Link>
+          <Link href="/setup" className="link-gold" style={{ fontSize: 10 }}><Database size={13} /> Project setup guide</Link>
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ import { getOwnerMedia, getOwnerProperties } from '@/lib/supabase/queries';
 import { deletePropertyMedia } from '@/lib/supabase/storage';
 import type { Property, PropertyMedia } from '@/lib/types';
 import { formatBytes, truncate } from '@/lib/utils';
+import { ShowcaseNotice } from '@/components/admin/ShowcaseNotice';
 
 export default function AdminMediaPage() {
   const owner = useOwner();
@@ -18,11 +19,13 @@ export default function AdminMediaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [showcase, setShowcase] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!owner.client) return;
     setLoading(true);
     const [p, m] = await Promise.all([getOwnerProperties(owner.client), getOwnerMedia(owner.client)]);
+    setShowcase(p.warning ?? m.warning ?? null);
     if (p.error) setError(p.error);
     else { setProperties(p.data ?? []); if (!selected && p.data?.length) setSelected(p.data[0].id); }
     if (m.error) setError(m.error); else { setMedia(m.data ?? []); setError(null); }

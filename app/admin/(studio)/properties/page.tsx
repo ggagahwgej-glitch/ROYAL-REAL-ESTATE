@@ -7,6 +7,8 @@ import { useOwner } from '@/lib/hooks/useOwner';
 import { deleteProperty, duplicateProperty, getMediaForProperties, getOwnerProperties, updateProperty } from '@/lib/supabase/queries';
 import type { Availability, Property, PropertyMedia } from '@/lib/types';
 import { coverImage, formatPrice, formatDate } from '@/lib/utils';
+import { ShowcaseNotice } from '@/components/admin/ShowcaseNotice';
+import { isShowcaseId } from '@/lib/showcase';
 
 export default function AdminPropertiesPage() {
   const owner = useOwner();
@@ -15,6 +17,7 @@ export default function AdminPropertiesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [showcase, setShowcase] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'all' | 'published' | 'draft'>('all');
   const [busy, setBusy] = useState<string | null>(null);
@@ -24,6 +27,7 @@ export default function AdminPropertiesPage() {
     if (!owner.client) return;
     setLoading(true); setError(null);
     const res = await getOwnerProperties(owner.client);
+    setShowcase(res.warning ?? null);
     if (res.error) { setError(res.error); setLoading(false); return; }
     const list = res.data ?? [];
     setItems(list);
@@ -66,6 +70,7 @@ export default function AdminPropertiesPage() {
 
       {feedback && <Notice tone={feedback.tone}>{feedback.text}</Notice>}
       {error && <Notice tone="error" title="Could not load properties">{error}</Notice>}
+      {showcase && <ShowcaseNotice detail={showcase} />}
 
       <div className="admin-card">
         <div className="admin-card-head">
@@ -88,23 +93,25 @@ export default function AdminPropertiesPage() {
             </tr></thead><tbody>
               {filtered.map(p => {
                 const cover = coverImage(p, media.filter(m => m.property_id === p.id));
-                return <tr key={p.id}>
+                const sample = isShowcaseId(p.id);
+                return <tr key={p.id} className={sample ? 'row-showcase' : ''}>
                   <td><div className="flex center gap-12">
                     {cover ? // eslint-disable-next-line @next/next/no-img-element
                       <img src={cover} alt="" className="thumb" loading="lazy" /> : <div className="thumb" style={{ background: 'var(--navy)' }} />}
-                    <div style={{ minWidth: 160 }}><Link href={`/admin/properties/${p.id}/edit`} style={{ color: 'var(--ivory)', fontWeight: 600 }}>{p.title}</Link>
+                    <div style={{ minWidth: 160 }}><span style={{ color: 'var(--ivory)', fontWeight: 600 }}>{p.title}</span>{sample && <span className="showcase-tag" style={{ marginLeft: 8 }}>Sample</span>}
                       <p className="tiny muted">{p.city} · {p.bedrooms} bed · {p.area_sqft} sq ft</p></div>
                   </div></td>
                   <td>{p.category}{p.featured && <Star size={12} className="gold" style={{ marginLeft: 6, verticalAlign: 'middle' }} />}</td>
                   <td className="gold" style={{ whiteSpace: 'nowrap' }}>{formatPrice(p.price, p.currency, true)}</td>
                   <td><StatusBadge tone={p.status === 'published' ? 'green' : 'muted'}>{p.status}</StatusBadge></td>
                   <td><select className="select" style={{ padding: '6px 28px 6px 10px', fontSize: 12, width: 130, backgroundPosition: 'right 8px center' }}
-                    value={p.availability} disabled={busy === p.id}
+                    value={p.availability} disabled={busy === p.id || sample}
                     onChange={e => void changeAvailability(p, e.target.value as Availability)}>
                     {(['available', 'reserved', 'sold', 'rented'] as const).map(a => <option key={a} value={a}>{a}</option>)}
                   </select></td>
                   <td className="tiny muted" style={{ whiteSpace: 'nowrap' }}>{formatDate(p.updated_at)}</td>
                   <td><div className="table-actions">
+                    {sample ? <span className="tiny muted" title="Run the SQL setup to import this residence">Read-only</span> : <>
                     <Link className="btn btn-ghost btn-icon btn-sm" href={`/admin/properties/${p.id}/edit`} title="Edit"><Pencil size={14} /></Link>
                     <button className="btn btn-ghost btn-icon btn-sm" disabled={busy === p.id} title={p.status === 'published' ? 'Unpublish' : 'Publish'}
                       onClick={() => void act(p.id, () => updateProperty(owner.client!, p.id, { title: p.title, status: p.status === 'published' ? 'draft' : 'published' }), p.status === 'published' ? 'Property unpublished. It is no longer visible publicly.' : 'Property published. It is now visible on the public website.')}>
@@ -115,6 +122,7 @@ export default function AdminPropertiesPage() {
                     <button className="btn btn-ghost btn-icon btn-sm" disabled={busy === p.id} title="Duplicate"
                       onClick={() => void act(p.id, async () => { const r = await duplicateProperty(owner.client!, p); return { error: r.error }; }, 'A draft copy has been created.')}><Copy size={14} /></button>
                     <button className="btn btn-danger btn-icon btn-sm" disabled={busy === p.id} title="Delete" onClick={() => setConfirm(p)}><Trash2 size={14} /></button>
+                    </>}
                     <Link className="btn btn-ghost btn-icon btn-sm" href={`/properties/${p.slug}`} target="_blank" title="View public page"><ArrowUpRight size={14} /></Link>
                   </div></td>
                 </tr>;

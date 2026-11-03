@@ -1,7 +1,7 @@
 'use client';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowUpRight, Compass, Award } from 'lucide-react';
+import { ArrowUpRight, Compass } from 'lucide-react';
 import { SmartImage } from '@/components/ui/SmartImage';
 import { Emblem } from '@/components/brand/Emblem';
 import { useSiteSettings } from '@/lib/hooks/useSiteData';
@@ -20,12 +20,12 @@ export function Hero() {
   return (
     <section className="hero">
       <div className="hero-media">
-        <SmartImage src={settings.hero_image || '/images/hero-estate.jpg'} alt="An imperial residence illuminated at blue hour" priority sizes="100vw" />
+        <SmartImage src={settings.hero_image || '/images/showcase-01.jpg'} alt="An imperial cliffside residence illuminated at blue hour above the Arabian Sea" priority sizes="100vw" />
       </div>
       <div className="hero-grain" />
       <div className="hero-content">
         <div className="container hero-inner">
-          <p className="eyebrow" style={{ animation: 'fadeIn 1s ease both' }}>Imperial Royal · Private Residences</p>
+          <p className="eyebrow" style={{ animation: 'fadeIn 1s ease both' }}>The Imperial Collection · Est. MMXXIV</p>
           <h1 style={{ animation: 'fadeIn 1.1s .1s ease both' }}>
             {first}{second ? <> <span className="accent">{second}</span></> : null}
           </h1>
@@ -42,8 +42,9 @@ export function Hero() {
         </div>
       </div>
       <div className="hero-badge">
-        <Award size={18} className="gold mb-8" />
-        <p className="serif" style={{ fontSize: '1.15rem', lineHeight: 1.3 }}>A standard above the ordinary.</p>
+        <div style={{ width: 34, height: 40, margin: '0 auto 10px', opacity: .95 }}><Emblem /></div>
+        <p className="eyebrow no-line" style={{ justifyContent: 'center', fontSize: 9, letterSpacing: '.3em' }}>By private appointment</p>
+        <p className="serif mt-8" style={{ fontSize: '1.15rem', lineHeight: 1.3 }}>A standard above the ordinary.</p>
         <p className="tiny muted mt-8">Every residence personally inspected.</p>
       </div>
       <div className="hero-scroll"><span /> Scroll to discover</div>

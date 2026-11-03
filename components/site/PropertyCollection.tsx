@@ -11,7 +11,7 @@ export function PropertyCollection({ heading = 'The Signature Collection', eyebr
   heading?: string; eyebrow?: string; limit?: number; featuredOnly?: boolean;
 }) {
   const config = useSupabaseConfig();
-  const { result, media, loading, error, configured } = usePublicProperties({ perPage: limit, featured: featuredOnly, sort: 'newest' });
+  const { result, media, loading, error, warning, configured } = usePublicProperties({ perPage: limit, featured: featuredOnly, sort: 'newest' });
 
   return (
     <section className="section" id="collection">
@@ -20,6 +20,7 @@ export function PropertyCollection({ heading = 'The Signature Collection', eyebr
           <div>
             <p className="eyebrow">{eyebrow}</p>
             <h2 className="h2 mt-16">{heading}</h2>
+            {warning && <span className="showcase-tag mt-16">Showcase collection</span>}
             <p className="muted mt-16 max-w-600">A small, deliberately edited selection of residences that meet our standards for architecture, provenance and position.</p>
           </div>
           <Link href="/properties" className="link-gold">View the full collection <ArrowUpRight /></Link>

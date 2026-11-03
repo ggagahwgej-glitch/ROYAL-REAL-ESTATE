@@ -1,7 +1,12 @@
 /* Content-integrity tests: exact required hero copy, no invented client
    endorsements, and safe normalization of owner-published testimonials. */
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// These assertions describe LIVE mode: no sample catalogue, no invented
+// references. vi.hoisted runs before module imports, so SHOWCASE_ENABLED is
+// already false when lib/showcase.ts is evaluated.
+vi.hoisted(() => { process.env.NEXT_PUBLIC_SHOWCASE = '0'; });
 import { DEFAULT_SETTINGS } from '../lib/utils';
 import { getSiteSettings, type Client } from '../lib/supabase/queries';
 

@@ -1,19 +1,23 @@
 /* Curated editorial content for the public marketing surfaces.
-   Property listings AND client testimonials are NEVER faked — they come from Supabase.
-   Testimonials are owner-published records in site_settings.testimonials. */
+
+   In LIVE mode, listings and client references come only from Supabase and
+   reference quotes are owner-published records in site_settings.testimonials.
+   In SHOWCASE mode (an explicitly labelled client demonstration), the
+   lib/showcase.ts catalogue supplies sample residences and sample references
+   so the example site is complete on first open. See README.md. */
 export interface Category { name: string; caption: string; image: string; href: string }
 export interface Destination { name: string; country: string; count: string; image: string }
 export const CATEGORIES: Category[] = [
-  { name: 'Signature Villas', caption: 'Private estates of rare distinction', image: '/images/coastal-villa.jpg', href: '/properties?category=Villa' },
-  { name: 'Imperial Penthouses', caption: 'The city, seen from above', image: '/images/penthouse.jpg', href: '/properties?category=Penthouse' },
-  { name: 'Grand Estates', caption: 'Land, lineage and legacy', image: '/images/hero-estate.jpg', href: '/properties?category=Estate' },
-  { name: 'Heritage Residences', caption: 'History, beautifully preserved', image: '/images/interior-gallery.jpg', href: '/properties?category=Heritage' },
+  { name: 'Signature Villas', caption: 'Private estates of rare distinction', image: '/images/showcase-01.jpg', href: '/properties?category=Villa' },
+  { name: 'Imperial Penthouses', caption: 'The city, seen from above', image: '/images/showcase-05.jpg', href: '/properties?category=Penthouse' },
+  { name: 'Grand Estates', caption: 'Land, lineage and legacy', image: '/images/showcase-06.jpg', href: '/properties?category=Estate' },
+  { name: 'Heritage Residences', caption: 'History, beautifully preserved', image: '/images/showcase-07.jpg', href: '/properties?category=Heritage' },
 ];
 
 export const DESTINATIONS: Destination[] = [
-  { name: 'The Mediterranean', country: 'Coastal Europe', count: 'A curated coastline', image: '/images/coastal-villa.jpg' },
-  { name: 'Metropolitan Skylines', country: 'Global Capitals', count: 'Above the ordinary', image: '/images/penthouse.jpg' },
-  { name: 'The Imperial Gardens', country: 'Private Enclaves', count: 'Space to breathe', image: '/images/garden-residence.png' },
+  { name: 'The Azure Coast', country: 'Western Seaboard', count: 'A curated coastline', image: '/images/showcase-03.jpg' },
+  { name: 'Metropolitan Skylines', country: 'Global Capitals', count: 'Above the ordinary', image: '/images/showcase-05.jpg' },
+  { name: 'The Imperial Gardens', country: 'Private Enclaves', count: 'Space to breathe', image: '/images/garden-residence.jpg' },
 ];
 
 export const WHY_US = [

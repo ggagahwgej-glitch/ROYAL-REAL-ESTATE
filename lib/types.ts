@@ -90,6 +90,10 @@ export interface Testimonial {
   name: string;
   role: string;
   initials?: string;
+  /** Optional 1–5 star rating published by the owner. Absent = no stars shown. */
+  rating?: number;
+  /** Marks clearly-labelled demonstration content (never a real endorsement). */
+  sample?: boolean;
 }
 
 export interface SiteSettings {

@@ -19,7 +19,7 @@ export function Brand({
   const showWords = variant !== 'emblem' && variant !== 'favicon';
   const content = (
     <>
-      <span className="brand-emblem"><Emblem tone={tone} title="Imperial Royal royal golden emblem" /></span>
+      <span className="brand-emblem"><Emblem tone={tone} title="Imperial Royal refined gold monogram" /></span>
       {showWords && (
         <>
           <span className="brand-divider" />

@@ -41,7 +41,12 @@ export default function AdminSettingsPage() {
     if (!owner.client) { setFeedback({ tone: 'error', text: 'No authenticated owner session.' }); return; }
     setBusy(true);
     const payload: Partial<SiteSettings> = { ...form, social: { ...social },
-      testimonials: quotes.map(t => ({ quote: t.quote.trim(), name: t.name.trim(), role: (t.role ?? '').trim(), initials: (t.initials ?? '').trim() })) };
+      testimonials: quotes.map(t => ({
+        quote: t.quote.trim(), name: t.name.trim(), role: (t.role ?? '').trim(),
+        initials: (t.initials ?? '').trim(),
+        rating: typeof t.rating === 'number' ? Math.max(1, Math.min(5, Math.round(t.rating))) : undefined,
+        ...(t.sample === true ? { sample: true } : {}),
+      })) };
     const res = await saveSiteSettings(owner.client, payload);
     setBusy(false);
     if (res.error) { setFeedback({ tone: 'error', text: `Settings could not be saved: ${res.error}` }); return; }
@@ -135,10 +140,10 @@ export default function AdminSettingsPage() {
 
       {tab === 'testimonials' && <div className="admin-card">
         <div className="admin-card-head"><h3 className="h3">Client testimonials</h3><span className="badge badge-gold">Public</span></div>
-        <Notice tone="warning">Only publish real client quotes for which you hold written permission. Never invent names, roles or endorsements. The public homepage shows an honest empty state until you publish genuine references here.</Notice>
+        <Notice tone="warning">Only publish real client quotes for which you hold written permission. Never invent names, roles or endorsements for a live business. Entries marked “Sample” are illustrative content for this client demonstration and are labelled as such on the public site.</Notice>
         <div className="flex between center gap-16 wrap mt-24">
           <p className="small muted">{quotes.length === 0 ? 'No testimonials published.' : `${quotes.length} published ${quotes.length === 1 ? 'testimonial' : 'testimonials'}.`}</p>
-          <button type="button" className="btn btn-outline btn-sm" onClick={() => set('testimonials', [...quotes, { quote: '', name: '', role: '', initials: '' }])}><Plus size={14} /> Add testimonial</button>
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => set('testimonials', [...quotes, { quote: '', name: '', role: '', initials: '', rating: 5 }])}><Plus size={14} /> Add testimonial</button>
         </div>
         {quotes.length === 0 ? <div className="empty-state mt-24"><Quote size={22} className="gold" /><p className="small muted mt-16">No client references are published. The homepage will state that references are shared in confidence.</p></div> : null}
         <div className="grid gap-16 mt-24">
@@ -154,6 +159,12 @@ export default function AdminSettingsPage() {
               <div className="field"><label className="label">Client name *</label><input className="input" value={t.name} onChange={e => set('testimonials', quotes.map((q, j) => j === i ? { ...q, name: e.target.value } : q))} placeholder="Name as permitted by the client" /></div>
               <div className="field"><label className="label">Role / location</label><input className="input" value={t.role ?? ''} onChange={e => set('testimonials', quotes.map((q, j) => j === i ? { ...q, role: e.target.value } : q))} placeholder="Private Client · Guwahati" /></div>
               <div className="field"><label className="label">Initials (optional)</label><input className="input" maxLength={3} value={t.initials ?? ''} onChange={e => set('testimonials', quotes.map((q, j) => j === i ? { ...q, initials: e.target.value } : q))} placeholder="Auto-generated if blank" /></div>
+              <div className="field"><label className="label" htmlFor={`t-rating-${i}`}>Star rating</label>
+                <select id={`t-rating-${i}`} className="select" value={t.rating ?? 0} onChange={e => set('testimonials', quotes.map((q, j) => j === i ? { ...q, rating: Number(e.target.value) || undefined } : q))}>
+                  <option value={0}>No stars shown</option><option value={5}>5 stars</option><option value={4}>4 stars</option><option value={3}>3 stars</option><option value={2}>2 stars</option><option value={1}>1 star</option>
+                </select><span className="hint">Displayed as gold stars on the public testimonial card.</span></div>
+              {t.sample === true && <div className="field span-2"><span className="showcase-tag">Sample showcase reference</span>
+                <span className="hint">This entry is marked as illustrative demonstration content, not a genuine client endorsement.</span></div>}
             </div>
           </div>)}
         </div>

@@ -6,6 +6,20 @@ import type {
   PropertyMedia, QueryResult, SiteSettings,
 } from '../types';
 import { DEFAULT_SETTINGS, errorMessage, slugify } from '../utils';
+import {
+  SHOWCASE_ENABLED, findShowcaseBySlug, isShowcaseId, mergeShowcaseSettings,
+  showcaseCities, showcaseMediaFor, showcaseMediaForProperty, showcasePaged,
+  showcaseRelated, SHOWCASE_PROPERTIES, SHOWCASE_MEDIA,
+} from '../showcase';
+
+function SHOWCASE_PROPERTIES_SORTED(): Property[] {
+  return SHOWCASE_ENABLED ? [...SHOWCASE_PROPERTIES] : [];
+}
+function SHOWCASE_MEDIA_ALL(): PropertyMedia[] {
+  return SHOWCASE_ENABLED ? [...SHOWCASE_MEDIA] : [];
+}
+
+const SHOWCASE_DB_NOTE = 'The connected project has no published residences yet, so the labelled showcase catalogue is displayed.';
 
 export type Client = SupabaseClient;
 
@@ -52,17 +66,36 @@ export async function getPublicProperties(client: Client, filters: PublicPropert
     }
     const from = (page - 1) * perPage;
     const { data, error, count } = await query.range(from, from + perPage - 1);
-    if (error) return fail(error);
+    if (error) {
+      if (SHOWCASE_ENABLED) return { data: showcasePaged(filters), error: null,
+        warning: `Live listings could not be read (${error.message}). ${SHOWCASE_DB_NOTE}` };
+      return fail(error);
+    }
     const total = count ?? 0;
+    if (!total && SHOWCASE_ENABLED) return { data: showcasePaged(filters), error: null, warning: SHOWCASE_DB_NOTE };
     return ok({ items: (data ?? []) as Property[], total, page, perPage, pages: Math.max(1, Math.ceil(total / perPage)) });
-  } catch (e) { return fail(e); }
+  } catch (e) {
+    if (SHOWCASE_ENABLED) return { data: showcasePaged(filters), error: null,
+      warning: `Live listings could not be read (${errorMessage(e)}). ${SHOWCASE_DB_NOTE}` };
+    return fail(e);
+  }
 }
 
 export async function getPublicPropertyBySlug(client: Client, slug: string): Promise<QueryResult<Property | null>> {
   try {
     const { data, error } = await client.from('properties').select('*').eq('slug', slug).eq('status', 'published').maybeSingle();
+    if (error && SHOWCASE_ENABLED) {
+      const sample = findShowcaseBySlug(slug);
+      if (sample) return { data: sample, error: null, warning: SHOWCASE_DB_NOTE };
+      return fail(error);
+    }
     if (error) return fail(error);
-    return ok((data as Property | null) ?? null);
+    const found = (data as Property | null) ?? null;
+    if (!found && SHOWCASE_ENABLED) {
+      const sample = findShowcaseBySlug(slug);
+      if (sample) return { data: sample, error: null, warning: SHOWCASE_DB_NOTE };
+    }
+    return ok(found);
   } catch (e) { return fail(e); }
 }
 
@@ -79,8 +112,12 @@ export async function getMediaForProperties(client: Client, ids: string[]): Prom
   try {
     const { data, error } = await client.from('property_media').select('*').in('property_id', ids)
       .order('is_cover', { ascending: false }).order('position', { ascending: true });
-    if (error) return fail(error);
-    return ok((data ?? []) as PropertyMedia[]);
+    const showcase = SHOWCASE_ENABLED ? showcaseMediaFor(ids) : [];
+    if (error) {
+      if (showcase.length) return { data: showcase, error: null, warning: SHOWCASE_DB_NOTE };
+      return fail(error);
+    }
+    return ok([...showcase, ...((data ?? []) as PropertyMedia[])]);
   } catch (e) { return fail(e); }
 }
 
@@ -88,12 +125,17 @@ export async function getMediaForProperty(client: Client, propertyId: string): P
   try {
     const { data, error } = await client.from('property_media').select('*').eq('property_id', propertyId)
       .order('is_cover', { ascending: false }).order('position', { ascending: true });
-    if (error) return fail(error);
-    return ok((data ?? []) as PropertyMedia[]);
+    const showcase = SHOWCASE_ENABLED ? showcaseMediaForProperty(propertyId) : [];
+    if (error) {
+      if (showcase.length) return { data: showcase, error: null, warning: SHOWCASE_DB_NOTE };
+      return fail(error);
+    }
+    return ok([...showcase, ...((data ?? []) as PropertyMedia[])]);
   } catch (e) { return fail(e); }
 }
 
 export async function getRelatedProperties(client: Client, property: Property, limit = 3): Promise<QueryResult<Property[]>> {
+  if (SHOWCASE_ENABLED && isShowcaseId(property.id)) return ok(showcaseRelated(property, limit));
   try {
     // Two parameterised queries instead of a hand-built `.or()` expression:
     // city/category values containing spaces, dots or quotes can never break
@@ -123,8 +165,9 @@ export async function getRelatedProperties(client: Client, property: Property, l
 export async function getDistinctCities(client: Client): Promise<QueryResult<string[]>> {
   try {
     const { data, error } = await client.from('properties').select('city').eq('status', 'published');
-    if (error) return fail(error);
-    const cities = Array.from(new Set((data ?? []).map(r => String(r.city)).filter(Boolean))).sort();
+    const sample = SHOWCASE_ENABLED ? showcaseCities() : [];
+    if (error) return sample.length ? ok(sample) : fail(error);
+    const cities = Array.from(new Set([...(data ?? []).map(r => String(r.city)).filter(Boolean), ...sample])).sort();
     return ok(cities);
   } catch (e) { return fail(e); }
 }
@@ -133,17 +176,24 @@ export async function getSiteSettings(client: Client): Promise<QueryResult<SiteS
   try {
     const { data, error } = await client.from('site_settings').select('*').eq('id', 1).maybeSingle();
     // Still render with brand defaults, but never hide the database failure.
-    if (error) return { data: { ...DEFAULT_SETTINGS }, error: `Public website settings could not be read (${error.message}). The application schema may not be installed yet.` };
+    if (error) {
+      if (SHOWCASE_ENABLED) return { data: mergeShowcaseSettings({ ...DEFAULT_SETTINGS }), error: null,
+        warning: `Public website settings could not be read (${error.message}). Showcase presentation settings are in use.` };
+      return { data: { ...DEFAULT_SETTINGS }, error: `Public website settings could not be read (${error.message}). The application schema may not be installed yet.` };
+    }
     const row = (data as Partial<SiteSettings> | null) ?? {};
     const rawTestimonials = row.testimonials;
     const testimonials = Array.isArray(rawTestimonials)
       ? rawTestimonials.filter((t): t is SiteSettings['testimonials'][number] =>
           !!t && typeof t.quote === 'string' && t.quote.trim().length > 0 && typeof t.name === 'string' && t.name.trim().length > 0)
       : [];
-    return ok({ ...DEFAULT_SETTINGS, ...row,
-      testimonials,
+    const settings: SiteSettings = { ...DEFAULT_SETTINGS, ...row,
+      testimonials: testimonials.map(t => ({ ...t,
+        rating: typeof t.rating === 'number' ? Math.max(1, Math.min(5, Math.round(t.rating))) : undefined,
+        sample: t.sample === true ? true : undefined })),
       social: { ...DEFAULT_SETTINGS.social, ...(row.social ?? {}) },
-      theme: { ...DEFAULT_SETTINGS.theme, ...(row.theme ?? {}) } });
+      theme: { ...DEFAULT_SETTINGS.theme, ...(row.theme ?? {}) } };
+    return ok(mergeShowcaseSettings(settings));
   } catch (e) { return { data: { ...DEFAULT_SETTINGS }, error: `Website settings could not be loaded: ${errorMessage(e)}` }; }
 }
 
@@ -191,8 +241,14 @@ export async function submitInquiry(client: Client, input: InquiryInput): Promis
 export async function getOwnerProperties(client: Client): Promise<QueryResult<Property[]>> {
   try {
     const { data, error } = await client.from('properties').select('*').order('created_at', { ascending: false });
-    if (error) return fail(error);
-    return ok((data ?? []) as Property[]);
+    if (error) {
+      if (SHOWCASE_ENABLED) return { data: SHOWCASE_PROPERTIES_SORTED(), error: null,
+        warning: `Owner listings could not be read (${error.message}). Showing the labelled showcase catalogue.` };
+      return fail(error);
+    }
+    const rows = (data ?? []) as Property[];
+    if (!rows.length && SHOWCASE_ENABLED) return { data: SHOWCASE_PROPERTIES_SORTED(), error: null, warning: SHOWCASE_DB_NOTE };
+    return ok(rows);
   } catch (e) { return fail(e); }
 }
 
@@ -324,7 +380,9 @@ export async function saveSiteSettings(client: Client, settings: Partial<SiteSet
 export async function getOwnerMedia(client: Client): Promise<QueryResult<PropertyMedia[]>> {
   try {
     const { data, error } = await client.from('property_media').select('*').order('created_at', { ascending: false }).limit(500);
-    if (error) return fail(error);
-    return ok((data ?? []) as PropertyMedia[]);
+    const rows = (data ?? []) as PropertyMedia[];
+    if (error) return SHOWCASE_ENABLED ? { data: SHOWCASE_MEDIA_ALL(), error: null, warning: SHOWCASE_DB_NOTE } : fail(error);
+    if (!rows.length && SHOWCASE_ENABLED) return { data: SHOWCASE_MEDIA_ALL(), error: null, warning: SHOWCASE_DB_NOTE };
+    return ok(rows);
   } catch (e) { return fail(e); }
 }

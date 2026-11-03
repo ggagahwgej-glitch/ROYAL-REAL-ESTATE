@@ -33,7 +33,7 @@ export function PropertyBrowser({ initialFilters = {}, lockType, heading, descri
   const [searchText, setSearchText] = useState(fromUrl.q ?? '');
   const [cities, setCities] = useState<string[]>([]);
   const [filterOpen, setFilterOpen] = useState(true);
-  const { result, media, loading, error, configured, refresh } = usePublicProperties(filters);
+  const { result, media, loading, error, warning, configured, refresh } = usePublicProperties(filters);
 
   useEffect(() => {
     const t = setTimeout(() => { if (searchText !== (filters.q ?? '')) setFilters(f => ({ ...f, q: searchText, page: 1 })); }, 350);
@@ -62,6 +62,8 @@ export function PropertyBrowser({ initialFilters = {}, lockType, heading, descri
   return (
     <>
       <div className="container">
+        {warning && <div className="showcase-strip"><span className="showcase-tag">Showcase collection</span>
+          <span className="tiny muted">Illustrative residences for this demonstration. Filters, search and pagination are fully working.</span></div>}
         <div className="filter-panel mt-48">
           <div className="flex between center gap-16 wrap mb-24">
             <div className="flex center gap-12"><SlidersHorizontal size={17} className="gold" /><h2 className="h4">Refine your search</h2>{active > 0 && <span className="badge badge-gold">{active} active</span>}</div>

@@ -77,7 +77,7 @@ export function OwnerGuard({ children, allowSetup = false }: { children: React.R
           <p className="small muted mt-16">{owner.message}</p>
           <Notice tone="warning" className="mt-24">Owner authorization is checked against <code>profiles.is_owner</code>. Until <code>supabase/schema.sql</code> and <code>supabase/owner-provisioning.sql</code> are installed, no account can be verified — including the real owner.</Notice>
           <div className="flex gap-12 center mt-24 wrap" style={{ justifyContent: 'center' }}>
-            <Link href="/admin/configuration" className="btn btn-gold"><Database size={15} /> Open setup guide</Link>
+            <Link href="/setup" className="btn btn-gold"><Database size={15} /> Open setup guide</Link>
             <button className="btn btn-outline" onClick={async () => { await owner.signOut(); window.location.href = '/admin/login'; }}>Sign out</button>
           </div>
         </div>
@@ -100,7 +100,7 @@ function AccessDenied({ owner }: { owner: ReturnType<typeof useOwner> }) {
         <Notice tone="error" className="mt-24 text-center">Authorization is verified against <code>profiles.is_owner</code> and enforced by Row Level Security. A standard Supabase account cannot access administrative data.</Notice>
         <div className="flex gap-12 center mt-24 wrap" style={{ justifyContent: 'center' }}>
           <button className="btn btn-gold" onClick={async () => { await owner.signOut(); window.location.href = '/admin/login'; }}><LogOut size={15} /> Sign out</button>
-          <Link href="/" className="btn btn-outline">Return to website</Link>
+          <Link href="/setup" className="btn btn-outline"><Database size={15} /> Setup guide</Link>
         </div>
       </div>
     </div>
