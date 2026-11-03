@@ -14,3 +14,5 @@ data/public-config.json
 data/*.backup.json
 image-search/
 scripts/smoke-results.json
+__pycache__/
+*.pyc

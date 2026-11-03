@@ -4,6 +4,7 @@ import { ArrowRight, ArrowLeft, Database, ShieldCheck, Sparkles } from 'lucide-r
 import { Emblem } from '@/components/brand/Emblem';
 import { ShowcaseSetupPanel } from '@/components/admin/ShowcaseSetupPanel';
 import { LiveSchemaCheck } from '@/components/admin/LiveSchemaCheck';
+import { SqlCopyBar } from '@/components/admin/SqlCopyBar';
 
 /**
  * A public, no-index setup guide. It exists because /admin/configuration is
@@ -50,6 +51,8 @@ export default function SetupGuidePage() {
             <p className="tiny muted mt-8">No password, secret key or service-role credential is stored in this repository. Run the SQL yourself in your Supabase dashboard.</p>
           </div>
         </div>
+
+        <SqlCopyBar />
 
         <LiveSchemaCheck />
 

@@ -36,6 +36,8 @@ const ROUTES = [
   ['/public-config.json', 200, 'schemaVersion'],
   ['/sql/schema.sql', 200, 'ROW LEVEL SECURITY'],
   ['/images/hero-estate.jpg', 200, null],
+  ['/brand/royal-crest.png', 200, null],
+  ['/brand/logo-horizontal.svg', 200, '<svg'],
 ];
 
 const results = [];

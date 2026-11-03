@@ -55,7 +55,7 @@ app/
   api/public-config/          Public bootstrap config (GET) + owner-gated publish (POST/DELETE)
   sitemap.ts robots.ts manifest.ts icon.svg
 components/
-  brand/                      Refined gold-foil IR monogram + 7 brand lockups
+  brand/                      Sovereign emperor cameo crest + 9 SVG lockups, master raster, 5 PNG icons
   site/ admin/ ui/            Shared design-system components
 lib/
   config/                     ONE dynamic configuration manager (+ server reader, validation)
@@ -67,7 +67,7 @@ supabase/                     schema.sql · storage.sql · owner-provisioning.sq
 public/
   brand/ sql/ images/         Static brand kit, SQL downloads, original photography
   public-config.json          Shared public bootstrap (pre-connected for this demo)
-tests/ scripts/               85 unit/security/regression tests + 50 live route/content smoke checks
+tests/ scripts/               88 unit/security/regression tests + 52 live route/content smoke checks
 ```
 
 ### Security model
@@ -135,7 +135,7 @@ with a clearly labelled showcase catalogue. On first open you will see:
 | Residences | **20** | Homepage collection, `/properties`, `/buy`, `/rent`, `/categories`, detail pages, sitemap and Owner Studio → Properties |
 | Gallery images | **60** | Property cards, lightboxes, detail galleries and Owner Studio → Media |
 | Sample references | **8** | Homepage testimonials section with **gold star ratings**, Owner Studio → Website settings → Testimonials |
-| Brand kit | refined gold-foil **IR** monogram | Header, footer, favicon, hero badge, `public/brand/*` |
+| Brand kit | **Sovereign royal crest** — classical emperor cameo, jewelled arched imperial crown, laurel wreath, beaded seal (the old generic shield / `IR` monogram is retired) | Header, footer, favicon, hero badge, `public/brand/*`, `scripts/generate-brand.py` |
 
 Everything is marked *Showcase* / *Sample*. No `AggregateRating` structured data is emitted for the
 sample references, and the site states plainly that they are illustrative, not genuine endorsements.

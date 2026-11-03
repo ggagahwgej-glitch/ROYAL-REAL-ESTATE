@@ -187,3 +187,43 @@ describe('cross-project SQL contamination (regression)', () => {
     expect(check).not.toMatch(/service_role|sb_secret_/i);
   });
 });
+
+describe('sovereign crest brand kit', () => {
+  const readBin = (p: string) => readFileSync(p);
+
+  it('retires the generic shield / IR monogram from the React emblem', () => {
+    const tsx = read('components/brand/Emblem.tsx');
+    expect(tsx).toContain('sovereign crest');
+    expect(tsx).toContain('/brand/royal-crest.png');
+    expect(tsx).not.toContain('useId');
+    expect(tsx).not.toContain('PALETTES');
+    expect(tsx).not.toContain('<svg');
+    expect(tsx).not.toContain('>IR<');
+  });
+
+  it('regenerates every SVG lockup and favicon from the same crest artwork', () => {
+    const svgs = ['public/brand/emblem-gold.svg', 'public/brand/emblem-light.svg',
+      'public/brand/emblem-mono.svg', 'public/brand/logo-horizontal.svg',
+      'public/brand/logo-light.svg', 'public/brand/logo-footer.svg',
+      'public/favicon.svg', 'app/icon.svg'];
+    for (const f of svgs) {
+      const s = read(f);
+      expect(s.startsWith('<svg')).toBe(true);
+      expect(s).toContain('data:image/jpeg;base64,');
+      expect(s).toMatch(/IMPERIAL ROYAL|sovereign crest/i);
+    }
+    expect(read('public/brand/logo-horizontal.svg')).toContain('PRIVATE REAL ESTATE OFFICE');
+    expect(read('public/brand/logo-horizontal.svg')).not.toContain('>IR<');
+  });
+
+  it('ships master artwork and all five raster icons', () => {
+    for (const f of ['public/brand/royal-crest-source.png', 'public/brand/royal-crest.png',
+      'public/brand/royal-crest.jpg', 'public/favicon-16.png', 'public/favicon-32.png',
+      'public/favicon-64.png', 'public/apple-touch-icon.png', 'public/brand-mark-512.png']) {
+      expect(readBin(f).length).toBeGreaterThan(500);
+    }
+    expect(readBin('public/brand-mark-512.png').length).toBeGreaterThan(50_000);
+    expect(read('components/brand/Brand.tsx')).toContain('Private Estates · Est. MMXXIV');
+    expect(read('app/globals.css')).toContain('.brand-emblem img');
+  });
+});
