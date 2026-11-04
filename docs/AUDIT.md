@@ -101,7 +101,7 @@ settings are always written to row 1 without `updated_at`, a failed cover-clear 
 cover is set, gallery renumbering writes `0..n-1` in order, and the dashboard reads all seven
 counters (degrading to zeros with a message when the database refuses).
 
-Current totals: **134 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
+Current totals: **136 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
 `tsc --noEmit` and `next build`.
 
 ## 2. Defects fixed in this pass
@@ -208,3 +208,28 @@ at fault — `app/(site)/page.tsx` resolves to `/` and exports a default.
 | `vercel.json` still sets **no** `outputDirectory` | Setting `.next` makes Vercel treat the build folder as static output and 404 every route — the requested change would have *caused* the reported symptom. Documented in `docs/DEPLOYMENT.md` §0 and asserted by a test. |
 | `tests/deployment.test.ts` +5 (21 total) | Locks the root entry points (layout + page that resolves to `/`, real default export), the absence of `basePath`/`rewrites()`, the preflight hook, and the `outputDirectory` prohibition. |
 | `docs/DEPLOYMENT.md` §0 | The branch table, the two fixes (change Production Branch, or merge into `main`), the required dashboard settings, and new troubleshooting rows. |
+
+## Live verification of the deployed site
+
+`https://roya-real-estate.vercel.app` — first production deployment after the merge:
+
+* Build: **~80 s** (a real build; the failing deploy took ~2 s), GitHub commit status `Vercel:
+  Deployment has completed`, state `success`.
+* `/` returns the full homepage: title, hero, the six signature residences with prices, the
+  collections and destinations sections, the crest and both hero images served through
+  `/_next/image`.
+* One **content** defect surfaced, not a deployment one: the site correctly fell back to the
+  showcase presentation but told the visitor
+
+  `Public website settings could not be read (column site_settings.id does not exist).`
+
+  Two separate issues, both now addressed:
+  1. **Schema drift in the connected Supabase project** — `site_settings` predates this build (no
+     `id` column). Re-running `supabase/showcase-setup.sql` repairs the table shape; `verify-schema.sql`
+     then reports 37/37. This is the owner's one remaining action.
+  2. **A raw Postgres message shown to visitors** (fixed in code). Public warnings are now neutral
+     prose; the driver text moves to a new `warningDetail` field rendered behind a collapsed
+     `<details>Technical detail</details>` for the owner. Owner Studio still gets the full message.
+     `tests/content.test.ts` now fails the build if a database message is interpolated into any
+     visitor-facing `warning`.
+

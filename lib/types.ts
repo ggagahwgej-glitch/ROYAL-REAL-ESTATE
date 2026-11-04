@@ -124,6 +124,9 @@ export interface QueryResult<T> {
   error: string | null;
   /** Non-fatal problem that succeeded overall — must still be shown to the owner. */
   warning?: string;
+  /** Raw Postgres/driver message behind `warning`. Never rendered to visitors:
+      schema internals are the owner's business, not the client's. */
+  warningDetail?: string;
 }
 
 export interface PropertyFilters {

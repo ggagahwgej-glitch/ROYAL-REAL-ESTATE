@@ -845,3 +845,9 @@ h1,h2,h3,h4{text-wrap:balance}
 @media (prefers-reduced-motion:reduce){
   .property-card::before,.stat-card::before{transition:none}
 }
+
+/* Owner-only diagnostics stay available without putting schema internals in
+   front of a client. One line, collapsed by default. */
+.technical-detail { display: inline; margin-left: 6px; }
+.technical-detail > summary { display: inline; cursor: pointer; color: var(--gold); font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; }
+.technical-detail > code { display: block; margin-top: 6px; font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: .74rem; line-height: 1.5; color: var(--ivory-dim, #b9b2a6); overflow-wrap: anywhere; }

@@ -63,3 +63,25 @@ describe('genuine testimonials only', () => {
     expect(res.error).toContain('site_settings');
   });
 });
+
+/* The showcase path is what a visitor sees when the connected project is not yet
+   ready. A raw Postgres message there is a client-facing defect, not a diagnostic. */
+describe('visitor-facing diagnostics', () => {
+  it('never interpolates a database message into a visitor-facing warning', () => {
+    const source = readFileSync('lib/supabase/queries.ts', 'utf8');
+    // Owner Studio may show driver detail; public reads may not. Split at the
+    // owner section marker so the assertion only covers visitor-facing code.
+    const ownerMarker = '/* ------------------------- Owner operations ------------------------- */';
+    const publicSource = source.slice(0, source.indexOf(ownerMarker));
+    expect(publicSource.length).toBeGreaterThan(1000);
+    expect(publicSource).not.toMatch(/warning:\s*[`'][^`']*\$\{error/);
+    expect(publicSource).not.toMatch(/warning:\s*[`'][^`']*\$\{errorMessage/);
+    expect(publicSource).toContain('warningDetail');
+  });
+
+  it('keeps the technical detail reachable for the owner only', () => {
+    const chrome = readFileSync('components/site/SiteChrome.tsx', 'utf8');
+    expect(chrome).toMatch(/<details[^>]*className="technical-detail"/);
+    expect(chrome).toContain('{warningDetail}');
+  });
+});
