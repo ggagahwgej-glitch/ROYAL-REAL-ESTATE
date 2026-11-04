@@ -178,7 +178,7 @@ export function PropertyBrowser({ initialFilters = {}, lockType, heading, descri
           </div>
         </div>
 
-        {!config.initialized || (config.loading && configured) ? (
+        {!config.initialized || (config.loading && configured) || (configured && loading) ? (
           <div className="property-grid">{[0, 1, 2, 3, 4, 5].map(i => <SkeletonCard key={i} />)}</div>
         ) : !configured ? (
           <SetupState config={config} compact />

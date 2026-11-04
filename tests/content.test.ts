@@ -85,3 +85,16 @@ describe('visitor-facing diagnostics', () => {
     expect(chrome).toContain('{warningDetail}');
   });
 });
+
+/* The showcase catalogue must never be replaced by an empty state while the
+   first query is still in flight: visitors saw "The collection is being
+   prepared" flash over a perfectly good collection on the live deployment. */
+describe('collection loading gate', () => {
+  for (const file of ['components/site/PropertyCollection.tsx', 'components/site/PropertyBrowser.tsx']) {
+    it(`${file} keeps the skeleton until the first query resolves`, () => {
+      const source = readFileSync(file, 'utf8');
+      expect(source).toMatch(/\(configured && loading\)/);
+      expect(source).toMatch(/!config\.initialized \|\| \(config\.loading && configured\) \|\| \(configured && loading\)/);
+    });
+  }
+});
