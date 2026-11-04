@@ -101,7 +101,7 @@ settings are always written to row 1 without `updated_at`, a failed cover-clear 
 cover is set, gallery renumbering writes `0..n-1` in order, and the dashboard reads all seven
 counters (degrading to zeros with a message when the database refuses).
 
-Current totals: **168 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
+Current totals: **172 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
 `tsc --noEmit` and `next build`.
 
 ## 2. Defects fixed in this pass
@@ -301,3 +301,39 @@ Every item was reported from real use, and each is now covered by a test.
 | 6 | `InquiryForm` used fixed ids (`inq-name`…), so a second instance on a page broke every label association. | `useId()` prefix; ids are now unique per instance. |
 
 Verification: `tsc` clean · **168 tests / 14 files** · clean `next build` · smoke **61/61** · SSR audit **401/401** · SQL deploy order **7/7**.
+
+---
+
+# Pass 7 — the Android card artifact, solved at the layer level
+
+The v5 pass removed the filter/backdrop/blend stack, yet fresh screenshots showed the same
+corruption: a rectangle of **tiled duplicates and coloured noise** covering the lower-left of the
+card image **and the text beneath it**.
+
+That last detail is the tell. The corrupted region is *larger than the image box*, so it was never
+an image-quality problem — it is a **corrupted compositor tile** belonging to the card's own
+composited layer. The card carried every promotion trigger simultaneously:
+
+| Trigger | Where |
+|---|---|
+| `isolation: isolate` | `.property-card` |
+| rounded clip (`border-radius` + `overflow:hidden`) | `.property-card`, `.property-image` |
+| opacity layers (`opacity:.5` / `.6` pseudo-elements) | `.property-card::before`, `::after` |
+| `transition: transform, box-shadow` | `.property-card` |
+| replaced element with `object-fit: cover` + CSS `filter` | `SmartImage` `<img>` |
+
+Fix, in two parts:
+
+1. **Card covers are no longer `<img>`.** New `CoverImage` paints the photograph as a CSS
+   `background-image` on a plain `<div>` (`background-size: cover`, `background-position: center`).
+   Background painting happens in the parent's own paint pass — no replaced-element layer, no
+   `object-fit`, no tile cache to corrupt. A hidden probe `Image()` keeps the branded fallback for a
+   missing object, since backgrounds cannot fire `onError`.
+2. **On mobile the card keeps no layer at all** (`@media (max-width: 900px)`): `isolation:auto`,
+   `overflow:visible` with the rounded top moved onto the image frame, `transition:none`,
+   `box-shadow:none`, decorative `::before`/`::after` overlays removed, and
+   `transform/filter/transition/will-change` forced to `none`/`auto` inside the frame. Still no
+   acceleration hint anywhere — `will-change:auto` is a reset, and a test enforces that.
+
+`tests/ui-safety.test.ts` grew to 15 tests covering the background paint, the probe fallback, and
+every mobile override. Totals: **172 tests**, smoke 61/61, SSR audit 401/401.

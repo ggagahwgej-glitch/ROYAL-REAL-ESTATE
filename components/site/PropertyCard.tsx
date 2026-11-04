@@ -1,12 +1,12 @@
 'use client';
 import Link from 'next/link';
 import { MapPin, BedDouble, Bath, Maximize2, ArrowUpRight, Heart } from 'lucide-react';
-import { SmartImage } from '@/components/ui/SmartImage';
+import { CoverImage } from '@/components/ui/SmartImage';
 import type { Property, PropertyMedia } from '@/lib/types';
 import { coverImage, formatArea, formatNumber, formatPrice } from '@/lib/utils';
 
-export function PropertyCard({ property, media = [], priority = false }: {
-  property: Property; media?: PropertyMedia[]; priority?: boolean;
+export function PropertyCard({ property, media = [] }: {
+  property: Property; media?: PropertyMedia[];
 }) {
   const image = coverImage(property, media);
   const statusLabel = property.availability === 'available' ? undefined
@@ -14,7 +14,7 @@ export function PropertyCard({ property, media = [], priority = false }: {
   return (
     <article className="property-card">
       <Link href={`/properties/${property.slug}`} className="property-image" aria-label={`View ${property.title}`}>
-        <SmartImage src={image} alt={property.title} priority={priority} />
+        <CoverImage src={image} alt={property.title} />
         <div className="property-tags">
           {property.featured && <span className="badge badge-gold">Signature</span>}
           <span className="badge badge-muted" style={{ background: 'rgba(8,9,13,.65)' }}>{property.listing_type === 'buy' ? 'For Sale' : 'For Rent'}</span>

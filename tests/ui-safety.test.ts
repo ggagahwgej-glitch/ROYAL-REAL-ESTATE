@@ -53,8 +53,10 @@ describe('mobile render safety', () => {
   });
 
   it('adds no hardware-acceleration hints to compensate', () => {
-    // The fix is fewer composited layers, not more: no will-change/translateZ(0).
-    expect(css).not.toContain('will-change');
+    // The fix is fewer composited layers, not more. `will-change:auto` is a
+    // reset and is allowed; any real hint is not.
+    const hints = [...css.matchAll(/will-change\s*:\s*([^;}]+)/g)].map(m => m[1].trim());
+    expect(hints.filter(value => !value.startsWith('auto'))).toEqual([]);
     expect(css).not.toContain('translateZ(0)');
   });
 
@@ -64,6 +66,42 @@ describe('mobile render safety', () => {
       expect(mobile).toContain(selector);
     }
     expect(mobile).toContain('backdrop-filter:none');
+  });
+});
+
+describe('card cover painting (v6)', () => {
+  const card = read('components/site/PropertyCard.tsx');
+  const smart = read('components/ui/SmartImage.tsx');
+
+  it('paints the cover as a background layer, not a composited <img>', () => {
+    // The corrupt tile came from a replaced element inside a clipped, rounded,
+    // opacity-layered card. A background paint has no layer of its own.
+    expect(card).toContain('CoverImage');
+    expect(card).not.toContain('<SmartImage');
+    expect(smart).toMatch(/export function CoverImage/);
+    expect(smart).toContain("data-cover-image=\"background\"");
+    expect(smart).toMatch(/backgroundImage: `url\(/);
+  });
+
+  it('keeps the branded fallback when a cover fails to load', () => {
+    // Background images cannot fire onError, so a probe image carries the signal.
+    expect(smart).toMatch(/new window\.Image\(\)/);
+    expect(smart).toMatch(/probe\.onerror = \(\) => setFailed\(true\)/);
+  });
+
+  it('leaves the mobile card with no compositing trigger at all', () => {
+    const mobile = css.slice(css.indexOf('CARD IMAGE · v6'));
+    expect(mobile).toMatch(/\.property-card\{[^}]*isolation:auto/);
+    expect(mobile).toMatch(/\.property-card\{[^}]*overflow:visible/);
+    expect(mobile).toMatch(/\.property-card\{[^}]*transition:none/);
+    expect(mobile).toMatch(/\.property-card::before,\s*\n\s*\.property-card::after,\s*\n\s*\.property-image::after\{display:none\}/);
+    expect(mobile).toMatch(/transform:none !important/);
+    expect(mobile).toMatch(/filter:none !important/);
+    expect(mobile).toMatch(/will-change:auto !important/);
+  });
+
+  it('still adds no acceleration hint', () => {
+    expect(css).not.toContain('translateZ');
   });
 });
 
