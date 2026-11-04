@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Save, ArrowLeft, Loader2, Building2, Layers3, Image as ImageIcon, Search, Trash2 } from 'lucide-react';
+import { Save, ArrowLeft, Loader2, Building2, Layers3, Image as ImageIcon, Search, Trash2, Lock, Check } from 'lucide-react';
 import { Notice, EmptyState } from '@/components/ui/UI';
 import { MediaManager } from './MediaManager';
 import { useOwner } from '@/lib/hooks/useOwner';
@@ -28,6 +28,13 @@ const TABS = [
   { id: 'media', label: 'Media gallery', Icon: ImageIcon },
 ] as const;
 type TabId = typeof TABS[number]['id'];
+
+/* Where to send the cursor when validation blocks a save. */
+const FIELD_IDS: Record<string, string> = {
+  title: 'p-title', slug: 'p-slug', city: 'p-city', category: 'p-cat',
+  price: 'p-price', area_sqft: 'p-area', map_url: 'p-map',
+  latitude: 'p-lat', longitude: 'p-lng',
+};
 
 export function PropertyForm({ propertyId }: { propertyId?: string }) {
   const router = useRouter();
@@ -59,10 +66,13 @@ export function PropertyForm({ propertyId }: { propertyId?: string }) {
   }, [propertyId, owner.client]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
     // A freshly created property lands here with ?saved=1 — confirm success.
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('saved') === '1') {
-      setJustCreated(true);
-    }
+    if (params.get('saved') === '1') setJustCreated(true);
+    // ?tab=media opens the gallery straight after "Save details & open gallery".
+    const requested = params.get('tab');
+    if (requested && TABS.some(t => t.id === requested)) setTab(requested as TabId);
   }, []);
 
   const set = <K extends keyof PropertyInput>(key: K, value: PropertyInput[K]) => {
@@ -93,33 +103,81 @@ export function PropertyForm({ propertyId }: { propertyId?: string }) {
     return e;
   };
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    const validation = validate();
-    setErrors(validation);
-    if (Object.keys(validation).length) { setFeedback({ tone: 'error', text: 'Please correct the highlighted fields before saving.' }); setTab(validation.map_url ? 'specs' : 'details'); return; }
-    if (!owner.client) { setFeedback({ tone: 'error', text: 'No authenticated Supabase client. Sign in again.' }); return; }
+  const focusFirstError = (validation: Record<string, string>) => {
+    const id = FIELD_IDS[Object.keys(validation)[0] ?? ''];
+    if (!id) return;
+    requestAnimationFrame(() => {
+      const el = document.getElementById(id);
+      if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); }
+    });
+  };
+
+  const buildPayload = (): PropertyInput => ({
+    ...form,
+    title: form.title.trim(),
+    slug: slugify(form.slug || form.title),
+    amenities: parseList(amenitiesText),
+    features: parseList(featuresText),
+    map_url: form.map_url?.trim() || null,
+    price_period: form.listing_type === 'rent' ? (form.price_period || 'month') : null,
+  });
+
+  /* Shared by "Create property" and "Save details & open gallery": one validation
+     path, one write, one place that reports failure. */
+  const persist = async (): Promise<string | null> => {
+    if (!owner.client) { setFeedback({ tone: 'error', text: 'No authenticated Supabase client. Sign in again.' }); return null; }
     setSaving(true); setFeedback(null);
-    const payload: PropertyInput = {
-      ...form,
-      title: form.title.trim(),
-      slug: slugify(form.slug || form.title),
-      amenities: parseList(amenitiesText),
-      features: parseList(featuresText),
-      map_url: form.map_url?.trim() || null,
-      price_period: form.listing_type === 'rent' ? (form.price_period || 'month') : null,
-    };
     const res = isEdit
-      ? await updateProperty(owner.client, propertyId!, payload)
-      : await createProperty(owner.client, payload);
+      ? await updateProperty(owner.client, propertyId!, buildPayload())
+      : await createProperty(owner.client, buildPayload());
     setSaving(false);
-    if (res.error) { setFeedback({ tone: 'error', text: `Save failed: ${res.error}` }); return; }
+    if (res.error) { setFeedback({ tone: 'error', text: `Save failed: ${res.error}` }); return null; }
     if (isEdit) {
       setFeedback({ tone: 'success', text: 'Property saved. Published changes are reflected on the public website immediately.' });
       setForm(res.data!);
-    } else {
-      router.push(`/admin/properties/${res.data!.id}/edit?saved=1`);
+      return propertyId!;
     }
+    return res.data!.id;
+  };
+
+  const validateOrExplain = (): Record<string, string> => {
+    const validation = validate();
+    setErrors(validation);
+    if (Object.keys(validation).length) {
+      setFeedback({ tone: 'error', text: 'Please correct the highlighted fields before saving.' });
+      setTab(validation.map_url ? 'specs' : 'details');
+      focusFirstError(validation);
+    }
+    return validation;
+  };
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (Object.keys(validateOrExplain()).length) return;
+    const id = await persist();
+    if (id && !isEdit) router.push(`/admin/properties/${id}/edit?saved=1`);
+  };
+
+  /* The gallery tab on an unsaved residence used to dead-end on "Save the
+     property first". It now saves the form and opens the gallery in one step;
+     if the essentials are missing, it says which ones and puts the cursor there. */
+  const openGallery = async () => {
+    const validation = validate();
+    if (Object.keys(validation).length) {
+      setErrors(validation);
+      setTab('details');
+      const first = Object.values(validation).slice(0, 2).join(' ');
+      setFeedback({ tone: 'error', text: `The gallery unlocks once the residence is saved. ${first}` });
+      focusFirstError(validation);
+      return;
+    }
+    const id = await persist();
+    if (id) router.push(`/admin/properties/${id}/edit?saved=1&tab=media`);
+  };
+
+  const selectTab = (next: TabId) => {
+    if (next === 'media' && !(isEdit && propertyId)) { void openGallery(); return; }
+    setTab(next);
   };
 
   if (loading) return <div className="admin-card"><div className="grid gap-12">{[0, 1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 52 }} />)}</div></div>;
@@ -143,7 +201,17 @@ export function PropertyForm({ propertyId }: { propertyId?: string }) {
       {justCreated && <Notice tone="success" title="Property created">The residence is saved as a private draft. Add images in the Media gallery tab, then set its status to Published to make the public page live.</Notice>}
       {feedback && <Notice tone={feedback.tone}>{feedback.text}</Notice>}
 
-      <div className="tabs">{TABS.map(t => <button type="button" key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}><t.Icon size={14} style={{ verticalAlign: 'middle', marginRight: 8 }} />{t.label}</button>)}</div>
+      <div className="tabs">{TABS.map(t => {
+        const locked = t.id === 'media' && !(isEdit && propertyId);
+        return (
+          <button type="button" key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => selectTab(t.id)}
+            aria-label={locked ? `${t.label} — unlocks after the residence is saved` : t.label}
+            title={locked ? 'Saves the core details, then opens the gallery' : undefined}>
+            <t.Icon size={14} style={{ verticalAlign: 'middle', marginRight: 8 }} />{t.label}
+            {locked && <Lock size={11} className="tab-lock" aria-hidden="true" />}
+          </button>
+        );
+      })}</div>
 
       {tab === 'details' && <div className="admin-card">
         <div className="admin-card-head"><h3 className="h3">Core details</h3><span className="badge badge-gold">{form.status}</span></div>
@@ -215,8 +283,22 @@ export function PropertyForm({ propertyId }: { propertyId?: string }) {
 
       {tab === 'media' && (isEdit && propertyId
         ? <MediaManager propertyId={propertyId} client={owner.client} title="Gallery & video" />
-        : <div className="admin-card"><EmptyState icon={<ImageIcon />} title="Save the property first"
-          description="Media must be linked to a saved property record. Create the property, then upload images and video from this tab." /></div>)}
+        : <div className="admin-card">
+          <div className="admin-card-head"><h3 className="h3">Media gallery</h3><span className="badge badge-gold">Unlocks after saving</span></div>
+          <p className="muted max-w-600">Images and video attach to a saved record, so the gallery opens the moment this residence exists. Nothing typed here is lost — the essentials below are saved first, in one step.</p>
+          <ul className="media-checklist">
+            <li className={form.title.trim().length > 1 ? 'ready' : ''}><span className="tick">{form.title.trim().length > 1 && <Check size={11} />}</span><span>Residence title — used for the gallery caption and the public page</span></li>
+            <li className={form.city?.trim() ? 'ready' : ''}><span className="tick">{Boolean(form.city?.trim()) && <Check size={11} />}</span><span>City or district</span></li>
+            <li className={form.category ? 'ready' : ''}><span className="tick">{Boolean(form.category) && <Check size={11} />}</span><span>Collection</span></li>
+            <li className={Number(form.price) >= 0 ? 'ready' : ''}><span className="tick">{Number(form.price) >= 0 && <Check size={11} />}</span><span>Price</span></li>
+          </ul>
+          <div className="flex gap-12 wrap mt-16">
+            <button type="button" className="btn btn-gold" onClick={() => void openGallery()} disabled={saving}>
+              {saving ? <><Loader2 size={14} className="spinner" /> Saving…</> : <><Save size={15} /> Save details &amp; open gallery</>}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={() => setTab('details')}>Review core details</button>
+          </div>
+        </div>)}
 
       <div className="flex between gap-12 wrap">
         <Link href="/admin/properties" className="btn btn-ghost"><ArrowLeft size={15} /> Back to properties</Link>

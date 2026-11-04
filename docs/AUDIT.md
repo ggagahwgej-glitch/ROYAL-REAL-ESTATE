@@ -101,7 +101,7 @@ settings are always written to row 1 without `updated_at`, a failed cover-clear 
 cover is set, gallery renumbering writes `0..n-1` in order, and the dashboard reads all seven
 counters (degrading to zeros with a message when the database refuses).
 
-Current totals: **138 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
+Current totals: **149 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
 `tsc --noEmit` and `next build`.
 
 ## 2. Defects fixed in this pass
@@ -243,3 +243,44 @@ rendered all 20 residences from the same data source. Cause: both collection gat
 the first query resolving the component fell through to the empty state. Fixed in
 `PropertyCollection` and `PropertyBrowser` — the skeleton now holds until `configured && loading`
 is false, so a populated collection can never be replaced by an empty one. Guarded by a test.
+
+---
+
+# Pass 5 — mobile render safety & the Owner Studio gallery dead end
+
+## 1. Coloured static rows across property cards (Android Chrome)
+
+A compositing stack, not a colour problem. On the card, three things combined:
+
+| Layer | Code | Why it broke |
+|---|---|---|
+| `backdrop-filter: blur(6px)` on `.property-fav` and `.property-tags .badge` | `globals.css` | A backdrop blur compositing a CSS-**filtered** `<img>` behind it, inside an `overflow:hidden` card with `isolation:isolate` — the known Chromium/Android tile-corruption path |
+| Three stacked `filter:` declarations on `.property-image img` (`.92` → `.99/.1.05` → hover `.1.04/.1.07`) | `globals.css` | Only the last wins, but every re-declaration forces a repaint; the hover variant animated *while* the card was mid-transform |
+| `mix-blend-mode: overlay` on the `feTurbulence` grain | `.hero-grain` | GPU-rendered noise blended over a composited layer is the classic generator of coloured static |
+| Hover state on a touch screen | `.property-card:hover` | A tap latches `:hover` on Android, leaving the card composited with a translate + image scale + animating filter |
+
+Fixed by removing each part rather than masking it: the two chips now use a solid
+`rgba(8,9,13,.82)` fill, one image filter remains and is disabled below 900 px, the grain keeps its texture
+but never blends, and all hover transforms live behind `@media (hover:none), (pointer:coarse)`.
+On small screens the remaining `backdrop-filter` uses (header, hero badge, mobile overlay, glass panels,
+studio top bar, sticky table headers) are switched off with opaque replacements, and the card's
+`box-shadow` is dropped so scrolling stops repainting it. No `will-change`/`translateZ(0)` was added —
+the fix is fewer composited layers, and a test fails if an acceleration hint ever appears.
+
+## 2. "Save the property first" dead end in Owner Studio
+
+The Media gallery tab rendered `MediaManager` only for `isEdit && propertyId`, otherwise a terminal
+empty state — the only way forward was to guess that the form had to be submitted first.
+
+Now the tab *is* the affordance:
+
+* clicking **Media gallery** on a new residence validates and saves it, then lands on
+  `/admin/properties/<id>/edit?saved=1&tab=media` — one click, no dead end;
+* if the essentials are missing, the form stays on Core details, names the first two problems, and
+  moves the cursor to the offending field;
+* the panel itself lists what the gallery needs (title, city, collection, price) with live ticks and a
+  **Save details & open gallery** button, so the requirement is visible before the click;
+* the tab carries a lock while unsaved, and `?tab=` is honoured on load so the redirect and any
+  bookmark land in the right place.
+
+`tests/ui-safety.test.ts` (11 tests) covers both halves: the CSS stack rules and the studio flow.
