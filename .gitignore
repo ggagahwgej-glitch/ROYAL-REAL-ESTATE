@@ -16,3 +16,4 @@ image-search/
 scripts/smoke-results.json
 __pycache__/
 *.pyc
+.scratch/

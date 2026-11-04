@@ -55,7 +55,7 @@ app/
   api/public-config/          Public bootstrap config (GET) + owner-gated publish (POST/DELETE)
   sitemap.ts robots.ts manifest.ts icon.svg
 components/
-  brand/                      Sovereign emperor cameo crest + 9 SVG lockups, transparent WebP set, 6 PNG icons
+  brand/                      Traced knight-helmet crest (gold + crimson) + 9 SVG lockups, WebP set, 6 PNG icons
   site/ admin/ ui/            Shared design-system components
 lib/
   config/                     ONE dynamic configuration manager (+ server reader, validation)
@@ -67,7 +67,7 @@ supabase/                     schema.sql · storage.sql · owner-provisioning.sq
 public/
   brand/ sql/ images/         Static brand kit, SQL downloads, original photography
   public-config.json          Shared public bootstrap (pre-connected for this demo)
-tests/ scripts/               89 unit/security/regression tests + 59 live route/content smoke checks
+tests/ scripts/               90 unit/security/regression tests + 61 live route/content smoke checks
 ```
 
 ### Security model
@@ -96,23 +96,40 @@ Both the public site and the Owner Studio resolve connections from
 ## Design system — Imperial Midnight Luxury
 
 * Obsidian `#090B10`, Imperial Black `#08090D`, Royal Navy `#101827`, Champagne Gold `#C6A45A`,
-  Metallic Gold `#D4B36A`, Antique Gold `#927442`, Ivory `#F4F0E7`.
+  Metallic Gold `#D4B36A`, Antique Gold `#927442`, Ivory `#F4F0E7` — with **crimson lacquer**
+  `#C01D34` / `#961229` / `#5C0A17` as the second house colour (`--crimson*` tokens in `app/globals.css`).
 * Cormorant Garamond (display) + Inter (body), loaded at runtime — no build-time font fetch.
-* **Sovereign crest emblem** — a classical emperor cameo beneath a jewelled imperial crown, framed
-  by laurel and a beaded seal. The crest is alpha-cut from the AI master artwork, so it composes on
-  obsidian, ivory or paper without a baked-in black tile, and it ships in `gold`, `mono` and `light`
-  tones with horizontal, compact, emblem, favicon and footer lockups.
-* The website streams a **transparent WebP set at 96 / 192 / 384 px** (1x / 2x / 3x) over a 39 KB
-  palette-PNG fallback, so the 52 px header crest costs ~5 KB instead of the 1.2 MB render. The SVG
-  lockups embed that same palette PNG (not WebP), so they still render in design tools, email clients
-  and librsvg pipelines — not only in browsers. Launcher icons are flattened to opaque obsidian
+* **Sovereign knight-helmet crest** — the client's own helmet drawing, kept as
+  `public/brand/royal-crest-source.png` and never redrawn. The build only adds the finish: the
+  silhouette is traced to **true vector curves**, then dressed in a polished champagne-gold face
+  over a deep crimson lacquer backing, with a crimson inner rim and a champagne edge light. Because
+  every lockup reuses that vector, the mark stays razor-sharp from a 16 px favicon to a 20 000 px
+  print master, and ships in `gold`, `mono` (single-colour engraving) and `light` tones.
+* The website streams a **transparent WebP set at 96 / 192 / 384 px** (1x / 2x / 3x) over a palette-PNG
+  fallback, so the 52 px header crest costs ~3 KB. Launcher icons are flattened to opaque obsidian
   (iOS composites transparency onto black); tab favicons stay transparent.
-* Static brand kit is in `public/brand/`; `app/icon.svg` is the favicon. Regenerate everything with
-  `python3 scripts/generate-brand.py` (it runs `scripts/prepare-crest.mjs`, which crops the dead
-  margin, cuts the feathered alpha rim and rebuilds every raster size and SVG lockup).
+* Regenerate everything with `python3 scripts/generate-brand.py` — it runs
+  `scripts/prepare-crest.mjs`, which cleans the drawing into a two-tone mask, traces it, applies the
+  gold/crimson finish and rebuilds every raster size, icon and SVG lockup.
+* Need a bigger raster? `node scripts/export-hires.mjs 20000` renders the vector at any size
+  (16 384 px is already shipped in `brand-exports/`); nothing is ever upscaled from a bitmap.
+* Restrained motion with full `prefers-reduced-motion` support; responsive from 360px to 1920px.
 
 | Asset | Use |
 |---|---|
+| `public/brand/royal-crest.svg` | **vector master** — gold + crimson, lossless at any size |
+| `public/brand/royal-crest-4096.png` | 4096 px transparent print master |
+| `public/brand/royal-crest.png` | 1024 px transparent palette-PNG web master / emblem fallback |
+| `public/brand/royal-crest-{96,192,384}.webp` | responsive transparent emblem (1x / 2x / 3x) |
+| `public/brand/royal-crest.jpg` | opaque obsidian tile — email signatures, social cards |
+| `public/brand/emblem-{gold,mono,light}.svg` | single-emblem lockups (same traced vector) |
+| `public/brand/logo-{horizontal,light,footer}.svg` | horizontal wordmark lockups (same traced vector) |
+| `public/brand/favicon.svg`, `public/favicon.svg`, `app/icon.svg` | SVG favicons (~5 KB, 96 px palette payload) |
+| `public/favicon-{16,32,64}.png`, `public/apple-touch-icon.png`, `public/brand-mark-{192,512}.png` | raster icons; launcher icons flattened to opaque obsidian |
+| `public/brand/royal-crest-source.png` | the client's original drawing — the source of truth |
+| `brand-exports/royal-crest-16384px.png` | 16 384 px deliverable, generated from the vector (`node scripts/export-hires.mjs 20000` for 20 K) |
+
+---|---|
 | `public/brand/royal-crest.png` | 384 px transparent palette-PNG master (39 KB) — emblem fallback, print, email |
 | `public/brand/royal-crest-96.png` | 96 px palette PNG embedded in the SVG favicons |
 | `public/brand/royal-crest-{96,192,384}.webp` | responsive transparent emblem (1x / 2x / 3x) |
@@ -132,7 +149,7 @@ npm run dev          # development server (0.0.0.0)
 npm run build        # production build
 npm run start        # production server (0.0.0.0)
 npm run typecheck    # strict TypeScript check
-npm run test         # vitest — 89 tests
+npm run test         # vitest — 90 tests
 npm run smoke        # requires a running server; BASE_URL=http://localhost:3000
 ```
 
@@ -155,7 +172,7 @@ with a clearly labelled showcase catalogue. On first open you will see:
 | Residences | **20** | Homepage collection, `/properties`, `/buy`, `/rent`, `/categories`, detail pages, sitemap and Owner Studio → Properties |
 | Gallery images | **60** | Property cards, lightboxes, detail galleries and Owner Studio → Media |
 | Sample references | **8** | Homepage testimonials section with **gold star ratings**, Owner Studio → Website settings → Testimonials |
-| Brand kit | **Sovereign royal crest** — classical emperor cameo, jewelled arched imperial crown, laurel wreath, beaded seal, alpha-cut for any background (the old generic shield / `IR` monogram is retired) | Header, footer, favicon, hero badge, `public/brand/*`, `scripts/generate-brand.py` |
+| Brand kit | **Sovereign knight-helmet crest** — the client's own helmet drawing, traced to vector and finished in champagne gold over crimson lacquer (the old generic shield / `IR` monogram is retired) | Header, footer, favicon, hero badge, `public/brand/*`, `scripts/generate-brand.py` |
 
 Everything is marked *Showcase* / *Sample*. No `AggregateRating` structured data is emitted for the
 sample references, and the site states plainly that they are illustrative, not genuine endorsements.

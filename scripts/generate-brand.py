@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Generate the IMPERIAL ROYAL sovereign-crest brand kit.
+"""Generate the IMPERIAL ROYAL brand kit from the traced knight-helmet crest.
 
-The crest is a classical emperor cameo beneath an intricate jewelled imperial
-crown, framed by laurel and a beaded seal (public/brand/royal-crest-source.png).
-`prepare-crest.mjs` normalises the artwork, crops the dead margin, cuts a
-feathered alpha edge and builds the responsive raster set; this script embeds
-the same transparent crest into every SVG lockup and writes the React Emblem
-component, so the favicon, header, footer and brand wall can never drift apart.
+`prepare-crest.mjs` turns the client's original drawing into
+`public/brand/royal-crest.svg` — a true vector mark dressed in champagne gold
+over crimson lacquer, plus every raster size. This script reuses that same
+vector (never a bitmap) inside every lockup, so:
 
-The embedded crest is a compact palette PNG with alpha, not a JPEG: the light
-lockups compose correctly on ivory or paper instead of carrying a black tile, and
-PNG (unlike WebP) still renders in design tools, email clients and librsvg.
+  * the horizontal / footer / light wordmarks stay sharp at any size;
+  * the favicons ship a 96 px palette PNG (a vector favicon would cost more
+    bytes on every tab request than it saves);
+  * the React Emblem and the static lockups can never drift apart.
 
 Run: python3 scripts/generate-brand.py
 """
 from __future__ import annotations
 import base64
+import re
 import subprocess
 from pathlib import Path
 
@@ -24,38 +24,47 @@ BRAND = ROOT / "public" / "brand"
 
 subprocess.run(["node", str(ROOT / "scripts" / "prepare-crest.mjs")], check=True, cwd=ROOT)
 
-# Two payload sizes: print-grade for the lockups, thumbnail-weight for favicons.
-# Palette PNG keeps each SVG portable; the website itself streams the WebP set.
-PAYLOAD = {96: "royal-crest-96.png", 384: "royal-crest.png"}
-HREF = {
-    size: "data:image/png;base64," + base64.b64encode((BRAND / name).read_bytes()).decode("ascii")
-    for size, name in PAYLOAD.items()
-}
+MASTER = (BRAND / "royal-crest.svg").read_text()
+VIEWBOX = re.search(r'viewBox="([^"]+)"', MASTER).group(1)
+# defs (path + gradients + clip) and the painted art, reused verbatim
+DEFS = MASTER.split("<defs>")[1].split("</defs>")[0]
+ART = MASTER.split("</defs>")[1].rsplit("</svg>", 1)[0]
 
-FOIL = """    <linearGradient id="foil" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#F2E3BE"/><stop offset=".28" stop-color="#D4B36A"/>
-      <stop offset=".56" stop-color="#A9823F"/><stop offset=".80" stop-color="#E5D1A0"/>
-      <stop offset="1" stop-color="#F7EBCF"/>
-    </linearGradient>"""
+# Single-colour engraving variant for one-colour print and embossing.
+MONO_DEFS = """    <linearGradient id="mono" x1=".14" y1="0" x2=".86" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/><stop offset=".55" stop-color="#C9C7C2"/><stop offset="1" stop-color="#8E8B85"/>
+    </linearGradient>
+    <linearGradient id="monoDeep" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0" stop-color="#9C9992"/><stop offset="1" stop-color="#5B5954"/>
+    </linearGradient>
+"""
 
-# Tone filters applied to the same crest so every asset stays in the family.
-FILTERS = {
-    "gold": "none",
-    "mono": "grayscale(1) sepia(.3) saturate(1.35) brightness(.94)",
-    "light": "brightness(.9) contrast(1.1) saturate(1.12)",
-}
-
-# The transparent crest keeps its own rim; only dark surfaces need the hairline.
-RIM = """<circle cx="192" cy="192" r="189" fill="none" stroke="url(#foil)" stroke-width="1.5" opacity=".55"/>"""
+FAVICON_PNG = base64.b64encode((BRAND / "royal-crest-96.png").read_bytes()).decode("ascii")
+FAVICON_HREF = "data:image/png;base64," + FAVICON_PNG
 
 
-def emblem_svg(tone: str, cref: int = 384) -> str:
-    rim = RIM if tone != "light" else ""
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 384" role="img" aria-label="Imperial Royal sovereign crest">
-  <title>Imperial Royal — sovereign crest, {tone} edition</title>
-  <defs>{FOIL}</defs>
-  <image x="0" y="0" width="384" height="384" href="{HREF[cref]}" style="filter:{FILTERS[tone]}"/>
-  {rim}
+def crest(width: int, height: int, x: int = 0, y: int = 0, mono: bool = False) -> str:
+    """Nest the vector mark inside another SVG, in the mark's own coordinate space."""
+    defs, art = (MONO_DEFS + DEFS, ART) if mono else (DEFS, ART)
+    if mono:
+        art = art.replace("url(#gold)", "url(#mono)").replace("url(#lacquer)", "url(#monoDeep)")
+    return (f'<svg x="{x}" y="{y}" width="{width}" height="{height}" viewBox="{VIEWBOX}">'
+            f"<defs>{defs}</defs>{art}</svg>")
+
+
+def emblem_svg(tone: str) -> str:
+    mono = tone == "mono"
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 384" role="img" aria-label="Imperial Royal knight-helmet crest">
+  <title>Imperial Royal — sovereign knight crest, {tone} edition</title>
+  {crest(384, 384, mono=mono)}
+</svg>
+'''
+
+
+def favicon_svg() -> str:
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 384" role="img" aria-label="Imperial Royal knight-helmet crest">
+  <title>Imperial Royal — sovereign knight crest, favicon</title>
+  <image x="0" y="0" width="384" height="384" href="{FAVICON_HREF}"/>
 </svg>
 '''
 
@@ -65,16 +74,14 @@ def lockup_svg(tone: str) -> str:
     word = "#F4F0E7" if dark else "#17140D"
     sub = "#C6A45A" if dark else "#7A5C2C"
     rule = "rgba(198,164,90,.42)" if dark else "rgba(110,82,39,.38)"
-    crest_filter = FILTERS[tone]
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 150" role="img" aria-label="Imperial Royal — private real estate office">
   <title>Imperial Royal — Private Real Estate Office, Est. MMXXIV</title>
-  <defs>{FOIL}</defs>
-  <image x="4" y="3" width="144" height="144" href="{HREF[384]}" style="filter:{crest_filter}"/>
+  {crest(144, 144, x=4, y=3)}
   <line x1="166" y1="24" x2="166" y2="126" stroke="{rule}" stroke-width="1"/>
   <text x="190" y="65" font-family="Cormorant Garamond, Georgia, serif" font-size="43" font-weight="500"
         letter-spacing="9" fill="{word}">IMPERIAL</text>
   <text x="190" y="107" font-family="Cormorant Garamond, Georgia, serif" font-size="43" font-style="italic"
-        letter-spacing="9" fill="url(#foil)">ROYAL</text>
+        letter-spacing="9" fill="#C6A45A">ROYAL</text>
   <text x="192" y="131" font-family="Inter, Arial, sans-serif" font-size="8.5" font-weight="600"
         letter-spacing="3.6" fill="{sub}">PRIVATE REAL ESTATE OFFICE · EST. MMXXIV</text>
 </svg>
@@ -85,36 +92,35 @@ TARGETS = {
     "public/brand/emblem-gold.svg": emblem_svg("gold"),
     "public/brand/emblem-light.svg": emblem_svg("light"),
     "public/brand/emblem-mono.svg": emblem_svg("mono"),
-    # Favicons ship on every tab request, so they carry the 96 px payload.
-    "public/brand/favicon.svg": emblem_svg("gold", 96),
-    "public/favicon.svg": emblem_svg("gold", 96),
-    "app/icon.svg": emblem_svg("gold", 96),
+    "public/brand/favicon.svg": favicon_svg(),
+    "public/favicon.svg": favicon_svg(),
+    "app/icon.svg": favicon_svg(),
     "public/brand/logo-horizontal.svg": lockup_svg("gold"),
     "public/brand/logo-light.svg": lockup_svg("light"),
     "public/brand/logo-footer.svg": lockup_svg("gold"),
 }
 
 EMBLEM_TSX = '''/* ==================================================================
-   IMPERIAL ROYAL — sovereign crest (generated by scripts/generate-brand.py)
-   A classical emperor cameo, jewelled imperial crown, laurel wreath and
-   beaded seal. The old generic shield / "IR" monogram is retired.
-   Master artwork: public/brand/royal-crest-source.png
-   Served set: transparent WebP at 96/192/384 (`royal-crest-*.webp`) with a
-   39 KB palette-PNG fallback, so the emblem costs a few kilobytes, not a megabyte.
+   IMPERIAL ROYAL — sovereign knight-helmet crest
+   The client's own helmet drawing, traced to vector and dressed in
+   champagne gold over crimson lacquer by scripts/prepare-crest.mjs.
+   Master artwork: public/brand/royal-crest-source.png (never redrawn)
+   Vector master:  public/brand/royal-crest.svg
+   Served set:     transparent WebP 96/192/384 + palette-PNG fallback
 ================================================================== */
 export type EmblemTone = 'gold' | 'mono' | 'light';
 
 /** CSS filters keep one artwork consistent across dark, mono and light uses. */
 const FILTERS: Record<EmblemTone, string> = {
   gold: 'none',
-  mono: 'grayscale(1) sepia(.3) saturate(1.35) brightness(.94)',
-  light: 'brightness(.9) contrast(1.1) saturate(1.12)',
+  mono: 'grayscale(1) contrast(1.06) brightness(1.08)',
+  light: 'brightness(1.03) contrast(1.02)',
 };
 
 /** 1x/2x/3x sources for the emblem's real display sizes (36–88 px). */
 const SRCSET = '/brand/royal-crest-96.webp 1x, /brand/royal-crest-192.webp 2x, /brand/royal-crest-384.webp 3x';
 
-export function Emblem({ tone = 'gold', className, title = 'Imperial Royal sovereign crest', style }: {
+export function Emblem({ tone = 'gold', className, title = 'Imperial Royal sovereign knight crest', style }: {
   tone?: EmblemTone; className?: string; title?: string; style?: React.CSSProperties;
 }) {
   return (
@@ -125,8 +131,8 @@ export function Emblem({ tone = 'gold', className, title = 'Imperial Royal sover
         src="/brand/royal-crest.png"
         alt={title}
         draggable={false}
-        width={384}
-        height={384}
+        width={1024}
+        height={1024}
         decoding="async"
         className={className}
         style={{
@@ -145,7 +151,7 @@ for rel, content in TARGETS.items():
     (ROOT / rel).write_text(content)
 (ROOT / "components" / "brand" / "Emblem.tsx").write_text(EMBLEM_TSX)
 
-print(f"SVG lockups: {len(TARGETS)} (crest embedded as transparent palette PNG)")
+print(f"Vector lockups: {len(TARGETS)} (crest reused from royal-crest.svg, {len(MASTER) // 1024} KB master)")
 print("React emblem: components/brand/Emblem.tsx (96/192/384 srcSet + PNG fallback)")
 print("Raster icons: favicon-16/32/64, apple-touch-icon, brand-mark-192, brand-mark-512")
-print("Responsive web set: royal-crest-96/192/384.webp + palette PNG master")
+print("Print: royal-crest.svg (lossless at any size) + royal-crest-4096.png")

@@ -37,6 +37,8 @@ const ROUTES = [
   ['/sql/schema.sql', 200, 'ROW LEVEL SECURITY'],
   ['/images/hero-estate.jpg', 200, null],
   ['/brand/royal-crest.png', 200, null],
+  ['/brand/royal-crest.svg', 200, '<path id="mark"'],
+  ['/brand/royal-crest-4096.png', 200, null],
   ['/brand/royal-crest-96.webp', 200, null],
   ['/brand/royal-crest-192.webp', 200, null],
   ['/brand-mark-192.png', 200, null],
@@ -125,8 +127,10 @@ try {
   const favBytes = Buffer.byteLength(typeof fav.body === 'string' ? fav.body : '', 'utf8');
   check('SVG favicon stays thumbnail-weight', fav.status === 200 && favBytes > 0 && favBytes < 20_000, `${(favBytes / 1024).toFixed(1)} KB`);
   const light = await request('/brand/logo-light.svg');
-  check('Light lockup carries transparent PNG artwork (no black tile)',
-    light.status === 200 && String(light.body).includes('data:image/png;base64,') && !String(light.body).includes('data:image/jpeg'));
+  const lightSvg = String(light.body);
+  check('Light lockup is the traced vector mark, gold and crimson (no black tile)',
+    light.status === 200 && lightSvg.includes('<path id="mark"')
+    && /#C01D34/i.test(lightSvg) && !lightSvg.includes('data:image/jpeg'));
 } catch (e) { check('Brand kit weight budget', false, e.message); }
 
 console.log(`\nConfiguration endpoint tests\n${'-'.repeat(64)}`);

@@ -189,12 +189,12 @@ describe('cross-project SQL contamination (regression)', () => {
   });
 });
 
-describe('sovereign crest brand kit', () => {
+describe('sovereign knight-helmet crest brand kit', () => {
   const readBin = (p: string) => readFileSync(p);
 
   it('retires the generic shield / IR monogram from the React emblem', () => {
     const tsx = read('components/brand/Emblem.tsx');
-    expect(tsx).toContain('sovereign crest');
+    expect(tsx).toContain('knight-helmet crest');
     expect(tsx).toContain('/brand/royal-crest.png');
     expect(tsx).not.toContain('useId');
     expect(tsx).not.toContain('PALETTES');
@@ -202,7 +202,41 @@ describe('sovereign crest brand kit', () => {
     expect(tsx).not.toContain('>IR<');
   });
 
-  it('serves the emblem as a responsive, transparent WebP set', async () => {
+  it('traces the client drawing to a gold-and-crimson vector master', () => {
+    const svg = read('public/brand/royal-crest.svg');
+    expect(svg.startsWith('<svg')).toBe(true);
+    expect(svg).toContain('<path id="mark"');
+    expect(svg).toMatch(/#C01D34/i); // crimson lacquer highlight
+    expect(svg).toMatch(/#FFFDF4/i); // champagne gold highlight
+    expect(svg).toMatch(/viewBox="[\d\-. ]+"/);
+    expect(readBin('public/brand/royal-crest.svg').length).toBeLessThan(40_000);
+    // the client's own drawing stays the committed source of truth
+    expect(readBin('public/brand/royal-crest-source.png').subarray(1, 4).toString()).toBe('PNG');
+  });
+
+  it('reuses that vector in every lockup instead of baking a bitmap', () => {
+    const lockups = ['public/brand/emblem-gold.svg', 'public/brand/emblem-light.svg',
+      'public/brand/emblem-mono.svg', 'public/brand/logo-horizontal.svg',
+      'public/brand/logo-light.svg', 'public/brand/logo-footer.svg'];
+    for (const f of lockups) {
+      const s = read(f);
+      expect(s.startsWith('<svg')).toBe(true);
+      expect(s).toContain('<path id="mark"');
+      expect(s).not.toContain('data:image/jpeg');
+      expect(s).toMatch(/IMPERIAL ROYAL|knight crest/i);
+    }
+    // the single-colour edition swaps the house palette for an engraving gradient
+    expect(read('public/brand/emblem-mono.svg')).toMatch(/#C9C7C2/i);
+    expect(read('public/brand/logo-horizontal.svg')).toContain('PRIVATE REAL ESTATE OFFICE');
+    expect(read('public/brand/logo-horizontal.svg')).not.toContain('>IR<');
+    // favicons are requested on every tab open, so they keep a tiny raster payload
+    for (const f of ['public/favicon.svg', 'app/icon.svg']) {
+      expect(read(f)).toContain('data:image/png;base64,');
+      expect(readBin(f).length).toBeLessThan(20_000);
+    }
+  });
+
+  it('serves a responsive transparent raster set plus a print master', async () => {
     const tsx = read('components/brand/Emblem.tsx');
     expect(tsx).toContain('srcSet');
     expect(tsx).toContain('royal-crest-192.webp');
@@ -213,38 +247,17 @@ describe('sovereign crest brand kit', () => {
       expect(meta.hasAlpha).toBe(true);
     }
     const master = await sharp('public/brand/royal-crest.png').metadata();
-    expect(master.width).toBe(384);
+    expect(master.width).toBe(1024);
     expect(master.hasAlpha).toBe(true);
+    const print = await sharp('public/brand/royal-crest-4096.png').metadata();
+    expect(print.width).toBe(4096);
+    expect(print.hasAlpha).toBe(true);
     // the 52 px header emblem must never ship the megabyte source again
     expect(readBin('public/brand/royal-crest-96.webp').length).toBeLessThan(25_000);
-    // the universal PNG fallback is a palette-quantised 384 px master, not the 1.2 MB render
-    expect(readBin('public/brand/royal-crest.png').length).toBeLessThan(60_000);
+    expect(readBin('public/brand/royal-crest.png').length).toBeLessThan(120_000);
   });
 
-  it('regenerates every SVG lockup and favicon from the same crest artwork', () => {
-    const svgs = ['public/brand/emblem-gold.svg', 'public/brand/emblem-light.svg',
-      'public/brand/emblem-mono.svg', 'public/brand/logo-horizontal.svg',
-      'public/brand/logo-light.svg', 'public/brand/logo-footer.svg',
-      'public/favicon.svg', 'app/icon.svg'];
-    for (const f of svgs) {
-      const s = read(f);
-      expect(s.startsWith('<svg')).toBe(true);
-      // palette PNG, not WebP: lockups must survive design tools and librsvg too
-      expect(s).toContain('data:image/png;base64,');
-      expect(s).toMatch(/IMPERIAL ROYAL|sovereign crest/i);
-    }
-    // light editions are transparent artwork, not a black tile on ivory/paper
-    for (const f of ['public/brand/logo-light.svg', 'public/brand/emblem-light.svg']) {
-      expect(read(f)).not.toContain('data:image/jpeg');
-      expect(read(f)).toContain('data:image/png;base64,');
-    }
-    // favicons are requested on every tab open, so they stay thumbnail-weight
-    expect(readBin('public/favicon.svg').length).toBeLessThan(20_000);
-    expect(read('public/brand/logo-horizontal.svg')).toContain('PRIVATE REAL ESTATE OFFICE');
-    expect(read('public/brand/logo-horizontal.svg')).not.toContain('>IR<');
-  });
-
-  it('ships master artwork and the full raster icon set', async () => {
+  it('ships the full raster icon set and an honest manifest', async () => {
     for (const f of ['public/brand/royal-crest-source.png', 'public/brand/royal-crest.png',
       'public/brand/royal-crest.jpg', 'public/favicon-16.png', 'public/favicon-32.png',
       'public/favicon-64.png', 'public/apple-touch-icon.png', 'public/brand-mark-192.png',
@@ -255,6 +268,7 @@ describe('sovereign crest brand kit', () => {
     expect(read('components/brand/Brand.tsx')).toContain('Private Estates · Est. MMXXIV');
     expect(read('app/globals.css')).toContain('.brand-emblem img');
     expect(read('app/globals.css')).toContain('picture{display:contents}');
+    expect(read('app/globals.css')).toContain('--crimson:#961229');
 
     // launcher icons are opaque; the declared sizes match the real files
     const apple = await sharp('public/apple-touch-icon.png').metadata();
