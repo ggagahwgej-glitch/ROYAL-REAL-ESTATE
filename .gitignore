@@ -1,0 +1,20 @@
+node_modules
+.next
+out
+build
+dist
+*.tsbuildinfo
+.env*
+!.env.example
+.DS_Store
+coverage
+# Runtime owner-published shared configuration (may contain a public anon key).
+# The template public/public-config.json is committed intentionally.
+data/public-config.json
+data/*.backup.json
+image-search/
+scripts/smoke-results.json
+__pycache__/
+*.pyc
+.scratch/
+.vercel
