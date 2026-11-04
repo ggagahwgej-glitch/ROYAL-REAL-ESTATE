@@ -6,33 +6,28 @@ import { Notice } from '@/components/ui/UI';
 import { useSupabaseConfig } from '@/lib/hooks/useSupabaseConfig';
 import { maskKey } from '@/lib/config/validation';
 import { formatDate } from '@/lib/utils';
+import {
+  DEFAULT_PREFERENCES, normalizePreferences, readPreferences, savePreferences,
+  type DisplayPreferences,
+} from '@/lib/preferences';
 
-interface Prefs { currency: string; density: 'comfortable' | 'compact'; motion: 'full' | 'reduced'; contrast: 'standard' | 'high' }
-const KEY = 'imperial-royal.display-preferences.v2';
-const DEFAULT: Prefs = { currency: 'INR', density: 'comfortable', motion: 'full', contrast: 'standard' };
+type Prefs = DisplayPreferences;
+const DEFAULT: Prefs = DEFAULT_PREFERENCES;
 
 export default function SettingsPage() {
   const config = useSupabaseConfig();
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) setPrefs({ ...DEFAULT, ...JSON.parse(raw) });
-    } catch { /* use defaults */ }
-  }, []);
-  useEffect(() => {
-    document.documentElement.dataset.density = prefs.density;
-    document.documentElement.dataset.contrast = prefs.contrast;
-    if (prefs.motion === 'reduced') document.documentElement.dataset.reducedMotion = 'true';
-    else delete document.documentElement.dataset.reducedMotion;
-  }, [prefs]);
+  // Read once on mount (SSR must render the documented defaults).
+  useEffect(() => { setPrefs(readPreferences()); }, []);
 
   const update = (patch: Partial<Prefs>) => {
-    const next = { ...prefs, ...patch };
+    const next = normalizePreferences({ ...prefs, ...patch });
     setPrefs(next);
-    try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    // savePreferences() also writes the <html> data attributes, so the choice
+    // now survives navigation to every other page.
+    savePreferences(next);
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   };
@@ -40,7 +35,7 @@ export default function SettingsPage() {
   return (
     <>
       <section className="page-hero"><div className="container">
-        <nav className="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> / <span>Preferences</span></nav>
+        <nav className="breadcrumb" aria-label="Breadcrumb"><Link href="/">Home</Link> / <span>Preferences</span></nav>
         <p className="eyebrow no-line mt-8">Your experience</p>
         <h1>Display preferences.</h1>
         <p className="lead mt-16 max-w-600">Personalise how the collection is presented in this browser. These settings are local to your device and never alter the website for other visitors.</p>

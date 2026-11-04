@@ -134,7 +134,7 @@ export function PropertyForm({ propertyId }: { propertyId?: string }) {
           <p className="small muted mt-8">{isEdit ? `Reference IR-${propertyId?.slice(0, 8).toUpperCase()} · last saved ${new Date((form as Property).updated_at ?? Date.now()).toLocaleString('en-GB')}` : 'Drafts are private. Publish when the residence is ready to appear on the website.'}</p></div>
         <div className="flex gap-12 wrap">
           {isEdit && form.status === 'published'
-            ? <Link href={`/properties/${form.slug}`} className="btn btn-ghost btn-sm" target="_blank">View public page</Link>
+            ? <Link href={`/properties/${form.slug}`} className="btn btn-ghost btn-sm" target="_blank" rel="noopener noreferrer">View public page</Link>
             : <span className="tiny muted" title="Publish this property to make its public page available">Public page available after publishing</span>}
           <button type="submit" className="btn btn-gold btn-sm" disabled={saving}>{saving ? <><Loader2 size={14} className="spinner" /> Saving…</> : <><Save size={14} /> {isEdit ? 'Save changes' : 'Create property'}</>}</button>
         </div>

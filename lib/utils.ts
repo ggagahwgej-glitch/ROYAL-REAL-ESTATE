@@ -54,6 +54,13 @@ export function formatBytes(bytes: number | null | undefined): string {
   return `${n.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
+/** Land parcels have no interior area: fall back to the plot size instead of “0 sq ft”. */
+export function formatArea(value: number | null | undefined, lot: number | null | undefined): string {
+  if (value && Number(value) > 0) return `${formatNumber(value)} sq ft`;
+  if (lot && Number(lot) > 0) return `${formatNumber(lot)} sq ft plot`;
+  return '—';
+}
+
 export function truncate(value: string | null | undefined, length = 160): string {
   if (!value) return '';
   return value.length > length ? `${value.slice(0, length - 1).trimEnd()}…` : value;

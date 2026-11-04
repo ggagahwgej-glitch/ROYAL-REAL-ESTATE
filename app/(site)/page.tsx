@@ -88,7 +88,10 @@ export default function HomePage() {
           <div className="grid grid-3">
             {DESTINATIONS.map((d, i) => (
               <Reveal key={d.name} delay={(i + 1) as 0 | 1 | 2 | 3}>
-                <Link href={`/properties?location=${encodeURIComponent(d.name.split(' ').pop() ?? '')}`} className="destination-card" style={{ display: 'block', position: 'relative' }}>
+                {/* These are editorial location themes, not filterable cities: the
+                    old link sent “The Azure Coast” to ?location=Coast, which could
+                    never match a listing. Send visitors to the full collection. */}
+                <Link href="/properties" className="destination-card" aria-label={`Browse residences in ${d.name}`} style={{ display: 'block', position: 'relative' }}>
                   <Image src={d.image} alt={d.name} fill sizes="(max-width: 780px) 100vw, 33vw" style={{ objectFit: 'cover' }} />
                   <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(0deg,rgba(6,7,11,.9),transparent 65%)' }} />
                   <div className="destination-body">

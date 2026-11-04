@@ -13,7 +13,7 @@ import { useSiteSettings } from '@/lib/hooks/useSiteData';
 import { getSupabaseClient } from '@/lib/supabase/factory';
 import { getMediaForProperty, getPublicPropertyBySlug, getRelatedProperties, getMediaForProperties } from '@/lib/supabase/queries';
 import type { Property, PropertyMedia } from '@/lib/types';
-import { coverImage, formatNumber, formatPrice, whatsappLink } from '@/lib/utils';
+import { coverImage, formatArea, formatNumber, formatPrice, whatsappLink } from '@/lib/utils';
 import { resolvePropertyMap } from '@/lib/maps';
 
 export function PropertyDetail({ slug }: { slug: string }) {
@@ -142,7 +142,7 @@ export function PropertyDetail({ slug }: { slug: string }) {
               <div className="spec-grid">
                 <div className="spec-cell"><p className="k">Bedrooms</p><p className="v">{formatNumber(property.bedrooms)}</p></div>
                 <div className="spec-cell"><p className="k">Bathrooms</p><p className="v">{formatNumber(property.bathrooms)}</p></div>
-                <div className="spec-cell"><p className="k">Interior area</p><p className="v">{formatNumber(property.area_sqft)} <span className="small muted">sq ft</span></p></div>
+                <div className="spec-cell"><p className="k">{property.area_sqft ? 'Interior area' : 'Plot area'}</p><p className="v">{formatArea(property.area_sqft, property.lot_sqft)}</p></div>
                 <div className="spec-cell"><p className="k">{property.year_built ? 'Built' : 'Plot area'}</p><p className="v">{property.year_built || formatNumber(property.lot_sqft)}</p></div>
               </div>
 
@@ -175,7 +175,7 @@ export function PropertyDetail({ slug }: { slug: string }) {
                 <span className="flex center gap-8"><CalendarDays size={14} className="gold" /> Listed {new Date(property.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>
                 <span className="flex center gap-8"><BedDouble size={14} className="gold" />{formatNumber(property.bedrooms)} bedrooms</span>
                 <span className="flex center gap-8"><Bath size={14} className="gold" />{formatNumber(property.bathrooms)} bathrooms</span>
-                <span className="flex center gap-8"><Maximize2 size={14} className="gold" />{formatNumber(property.area_sqft)} sq ft</span>
+                <span className="flex center gap-8"><Maximize2 size={14} className="gold" />{formatArea(property.area_sqft, property.lot_sqft)}</span>
               </div>
             </div>
 

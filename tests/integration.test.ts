@@ -1,7 +1,7 @@
 /* Regression tests for the bug-fix pass: public enquiry writes, Google Maps
    normalisation, login redirect safety, and media upload/delete behaviour. */
 import { describe, expect, it, vi } from 'vitest';
-import { submitInquiry, type Client } from '../lib/supabase/queries';
+import { createProperty, submitInquiry, updateProperty, type Client } from '../lib/supabase/queries';
 import { mediaMimeType, validateMediaFile, deletePropertyMedia } from '../lib/supabase/storage';
 import { resolvePropertyMap, extractCoordinates, validateMapUrl } from '../lib/maps';
 import { safeNextPath, getOwnerAccessToken } from '../lib/auth/owner';
@@ -182,5 +182,60 @@ describe('media deletion', () => {
     const res = await deletePropertyMedia(client, media);
     expect(res.error).toMatch(/RLS blocked/);
     expect(removed).not.toHaveBeenCalled();
+  });
+});
+
+/* ------------------------------------- 5. the public slug must never drift */
+describe('property writes and the public slug', () => {
+  function propertyClient(error?: { code?: string; message: string }) {
+    const writes: Array<Record<string, unknown>> = [];
+    const result = (payload: Record<string, unknown>) => ({ data: { id: 'p1', ...payload }, error: error ?? null });
+    const client = {
+      from(table: string) {
+        if (table !== 'properties') throw new Error(`unexpected table ${table}`);
+        return {
+          insert(payload: Record<string, unknown>) {
+            writes.push(payload);
+            return { select: () => ({ single: async () => result(payload) }) };
+          },
+          update(payload: Record<string, unknown>) {
+            writes.push(payload);
+            return { eq: () => ({ select: () => ({ single: async () => result(payload) }) }) };
+          },
+        };
+      },
+    } as unknown as Client;
+    return { client, writes };
+  }
+
+  it('derives a slug from the title when a property is created', async () => {
+    const { client, writes } = propertyClient();
+    const res = await createProperty(client, { title: 'The Aurelian Estate' });
+    expect(res.error).toBeNull();
+    expect(writes[0].slug).toBe('the-aurelian-estate');
+  });
+
+  it('never re-derives the slug on update, so publish/feature toggles cannot break a live URL', async () => {
+    const { client, writes } = propertyClient();
+    const res = await updateProperty(client, 'p1', { title: 'Renamed Residence', featured: true });
+    expect(res.error).toBeNull();
+    expect(writes[0]).not.toHaveProperty('slug');
+    expect(writes[0]).toMatchObject({ title: 'Renamed Residence', featured: true });
+  });
+
+  it('persists an explicitly edited slug, normalised', async () => {
+    const { client, writes } = propertyClient();
+    await updateProperty(client, 'p1', { title: 'Renamed Residence', slug: 'Aurelian Penthouse!' });
+    expect(writes[0].slug).toBe('aurelian-penthouse');
+  });
+
+  it('turns a duplicate-slug constraint error into an actionable message', async () => {
+    const { client } = propertyClient({
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "properties_slug_key"',
+    });
+    const res = await createProperty(client, { title: 'The Aurelian Estate' });
+    expect(res.error).toMatch(/already used by another residence/i);
+    expect(res.error).toContain('/properties/the-aurelian-estate');
   });
 });

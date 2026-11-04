@@ -82,14 +82,14 @@ export function usePublicProperties(filters: PropertyFilters): PropertiesState {
   useEffect(() => {
     let cancelled = false;
     if (!config.initialized) return;
-    if (!client) { setResult({ items: [], total: 0, page: 1, perPage: 9, pages: 1 }); setMedia([]); setLoading(false); setError(null); setWarning(null); return; }
+    if (!client) { setResult({ items: [], total: 0, page: 1, perPage: filters.perPage ?? 9, pages: 1 }); setMedia([]); setLoading(false); setError(null); setWarning(null); return; }
     (async () => {
       setLoading(true); setError(null); setWarning(null);
       const parsed = JSON.parse(filtersKey) as PropertyFilters;
       const res = await getPublicProperties(client, parsed);
       if (cancelled) return;
       setWarning(res.warning ?? null);
-      if (res.error || !res.data) { setError(res.error); setResult({ items: [], total: 0, page: 1, perPage: 9, pages: 1 }); setMedia([]); setLoading(false); return; }
+      if (res.error || !res.data) { setError(res.error); setResult({ items: [], total: 0, page: 1, perPage: filters.perPage ?? 9, pages: 1 }); setMedia([]); setLoading(false); return; }
       const page = res.data;
       const mediaRes = page.items.length ? await getMediaForProperties(client, page.items.map(p => p.id)) : { data: [], error: null };
       if (cancelled) return;

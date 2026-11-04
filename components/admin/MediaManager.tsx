@@ -78,16 +78,19 @@ export function MediaManager({ propertyId, client, title = 'Property media' }: {
     if (e.dataTransfer.files?.length) void handleFiles(e.dataTransfer.files);
   };
 
-  const run = async (id: string, action: Action, msg: string) => {
+  /** Returns true only when the write actually succeeded. */
+  const run = async (id: string, action: Action, msg: string): Promise<boolean> => {
     setBusy(id); setNotice(null);
     try {
       const result = await action();
-      if (result.error) { setNotice({ tone: 'error', text: result.error }); return; }
-      if (result.warning) { setNotice({ tone: 'warning', text: result.warning }); return; }
+      if (result.error) { setNotice({ tone: 'error', text: result.error }); return false; }
+      if (result.warning) { setNotice({ tone: 'warning', text: result.warning }); return false; }
       setNotice({ tone: 'success', text: msg });
       await load();
+      return true;
     } catch (e) {
       setNotice({ tone: 'error', text: e instanceof Error ? e.message : 'The operation could not be completed.' });
+      return false;
     } finally { setBusy(null); }
   };
 
@@ -104,7 +107,7 @@ export function MediaManager({ propertyId, client, title = 'Property media' }: {
       {notice && <Notice tone={notice.tone} className="mb-16">{notice.text}</Notice>}
       {error && <Notice tone="error" className="mb-16" title="Media could not be loaded">{error}</Notice>}
 
-      <div className={`dropzone ${drag ? 'drag' : ''}`} onClick={() => inputRef.current?.click()}
+      <div className={`dropzone ${drag ? 'drag' : ''}`} onClick={e => { if (!(e.target as HTMLElement).closest('input')) inputRef.current?.click(); }}
         onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={onDrop}
         role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click(); }}>
         <UploadCloud />
@@ -112,7 +115,7 @@ export function MediaManager({ propertyId, client, title = 'Property media' }: {
         <p className="small muted mt-8">or click to browse · JPG, PNG, WebP, AVIF, GIF (12 MB) · MP4 / WebM video (120 MB). MP4 H.264 is recommended; MOV may not play in every browser.</p>
         {progress && <div className="mt-16"><p className="tiny gold flex center gap-8" style={{ justifyContent: 'center' }}><span className="spinner" /> Uploading {progress.currentFile} — {progress.completed}/{progress.total}</p>
           <div style={{ height: 4, background: 'var(--line-soft)', borderRadius: 2, marginTop: 10 }}><div style={{ height: '100%', width: `${(progress.completed / Math.max(1, progress.total)) * 100}%`, background: 'var(--gold)', borderRadius: 2, transition: 'width .3s' }} /></div></div>}
-        <input ref={inputRef} type="file" multiple accept="image/jpeg,image/png,image/webp,image/avif,image/gif,video/mp4,video/webm,video/quicktime,.jpg,.jpeg,.png,.webp,.avif,.mp4,.webm,.mov" onChange={onInput} className="hidden" />
+        <input ref={inputRef} type="file" multiple accept="image/jpeg,image/png,image/webp,image/avif,image/gif,video/mp4,video/webm,video/quicktime,.jpg,.jpeg,.png,.webp,.avif,.mp4,.webm,.mov" onChange={onInput} onClick={e => e.stopPropagation()} className="hidden" />
       </div>
 
       <div className="mt-24">
@@ -133,7 +136,7 @@ export function MediaManager({ propertyId, client, title = 'Property media' }: {
                 <div className="media-body">
                   {editingAlt === m.id
                     ? <div className="flex gap-8"><input className="input" style={{ padding: '6px 8px', fontSize: 12 }} value={altValue} onChange={e => setAltValue(e.target.value)} autoFocus />
-                        <button className="btn btn-ghost btn-icon btn-sm" title="Save" onClick={() => void run(m.id, withClient(c => () => updateMediaAlt(c, m.id, altValue)), 'Description updated.').then(() => setEditingAlt(null))}><Check size={14} /></button>
+                        <button className="btn btn-ghost btn-icon btn-sm" title="Save" onClick={() => void run(m.id, withClient(c => () => updateMediaAlt(c, m.id, altValue)), 'Description updated.').then(ok => { if (ok) setEditingAlt(null); })}><Check size={14} /></button>
                         <button className="btn btn-ghost btn-icon btn-sm" title="Cancel" onClick={() => setEditingAlt(null)}><X size={14} /></button></div>
                     : <button className="tiny muted" style={{ background: 'none', border: 0, textAlign: 'left', padding: 0, wordBreak: 'break-all' }} onClick={() => { setEditingAlt(m.id); setAltValue(m.alt_text ?? ''); }} title="Edit description">{m.alt_text || 'Add a description…'}</button>}
                   <p className="tiny muted mt-8">{m.kind} · {formatBytes(m.file_size)} · #{i + 1}</p>

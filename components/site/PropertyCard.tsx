@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { MapPin, BedDouble, Bath, Maximize2, ArrowUpRight, Heart } from 'lucide-react';
 import { SmartImage } from '@/components/ui/SmartImage';
 import type { Property, PropertyMedia } from '@/lib/types';
-import { coverImage, formatNumber, formatPrice } from '@/lib/utils';
+import { coverImage, formatArea, formatNumber, formatPrice } from '@/lib/utils';
 
 export function PropertyCard({ property, media = [], priority = false }: {
   property: Property; media?: PropertyMedia[]; priority?: boolean;
@@ -34,7 +34,7 @@ export function PropertyCard({ property, media = [], priority = false }: {
         <div className="property-specs">
           <span><BedDouble size={14} />{formatNumber(property.bedrooms)} Beds</span>
           <span><Bath size={14} />{formatNumber(property.bathrooms)} Baths</span>
-          <span><Maximize2 size={14} />{formatNumber(property.area_sqft)} sq ft</span>
+          <span><Maximize2 size={14} />{formatArea(property.area_sqft, property.lot_sqft)}</span>
           <Link href={`/properties/${property.slug}`} style={{ marginLeft: 'auto', color: 'var(--gold)', display: 'inline-flex' }} aria-label={`View ${property.title}`}><ArrowUpRight size={17} /></Link>
         </div>
       </div>

@@ -6,7 +6,7 @@ import { EmptyState, Modal, Notice, StatusBadge } from '@/components/ui/UI';
 import { useOwner } from '@/lib/hooks/useOwner';
 import { deleteProperty, duplicateProperty, getMediaForProperties, getOwnerProperties, updateProperty } from '@/lib/supabase/queries';
 import type { Availability, Property, PropertyMedia } from '@/lib/types';
-import { coverImage, formatPrice, formatDate } from '@/lib/utils';
+import { coverImage, formatArea, formatPrice, formatDate } from '@/lib/utils';
 import { ShowcaseNotice } from '@/components/admin/ShowcaseNotice';
 import { isShowcaseId } from '@/lib/showcase';
 
@@ -99,7 +99,7 @@ export default function AdminPropertiesPage() {
                     {cover ? // eslint-disable-next-line @next/next/no-img-element
                       <img src={cover} alt="" className="thumb" loading="lazy" /> : <div className="thumb" style={{ background: 'var(--navy)' }} />}
                     <div style={{ minWidth: 160 }}><span style={{ color: 'var(--ivory)', fontWeight: 600 }}>{p.title}</span>{sample && <span className="showcase-tag" style={{ marginLeft: 8 }}>Sample</span>}
-                      <p className="tiny muted">{p.city} · {p.bedrooms} bed · {p.area_sqft} sq ft</p></div>
+                      <p className="tiny muted">{p.city} · {p.bedrooms} bed · {formatArea(p.area_sqft, p.lot_sqft)}</p></div>
                   </div></td>
                   <td>{p.category}{p.featured && <Star size={12} className="gold" style={{ marginLeft: 6, verticalAlign: 'middle' }} />}</td>
                   <td className="gold" style={{ whiteSpace: 'nowrap' }}>{formatPrice(p.price, p.currency, true)}</td>
@@ -123,7 +123,7 @@ export default function AdminPropertiesPage() {
                       onClick={() => void act(p.id, async () => { const r = await duplicateProperty(owner.client!, p); return { error: r.error }; }, 'A draft copy has been created.')}><Copy size={14} /></button>
                     <button className="btn btn-danger btn-icon btn-sm" disabled={busy === p.id} title="Delete" onClick={() => setConfirm(p)}><Trash2 size={14} /></button>
                     </>}
-                    <Link className="btn btn-ghost btn-icon btn-sm" href={`/properties/${p.slug}`} target="_blank" title="View public page"><ArrowUpRight size={14} /></Link>
+                    <Link className="btn btn-ghost btn-icon btn-sm" href={`/properties/${p.slug}`} target="_blank" rel="noopener noreferrer" title="View public page"><ArrowUpRight size={14} /></Link>
                   </div></td>
                 </tr>;
               })}

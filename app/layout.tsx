@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { ConfigBootstrap } from '@/components/site/ConfigBootstrap';
+import { PreferencesBootstrap } from '@/components/site/PreferencesBootstrap';
 import { getSiteUrl } from '@/lib/config/site-url';
 import './globals.css';
 
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ConfigBootstrap />
+        <PreferencesBootstrap />
         {children}
       </body>
     </html>

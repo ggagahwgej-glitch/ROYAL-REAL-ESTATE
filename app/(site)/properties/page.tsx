@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Suspense } from 'react';
 import { PropertyBrowser } from '@/components/site/PropertyBrowser';
 import { Loading } from '@/components/ui/UI';
@@ -13,7 +14,7 @@ export default function PropertiesPage() {
   return (
     <>
       <section className="page-hero"><div className="container">
-        <nav className="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> / <span>Properties</span></nav>
+        <nav className="breadcrumb" aria-label="Breadcrumb"><Link href="/">Home</Link> / <span>Properties</span></nav>
         <p className="eyebrow no-line mt-8">The complete collection</p>
         <h1>Find your exceptional address.</h1>
         <p className="lead mt-16 max-w-600">Explore every published residence. Refine by location, collection, price and specification.</p>

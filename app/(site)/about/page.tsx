@@ -16,7 +16,7 @@ export default function AboutPage() {
   return (
     <>
       <section className="page-hero"><div className="container">
-        <nav className="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> / <span>About</span></nav>
+        <nav className="breadcrumb" aria-label="Breadcrumb"><Link href="/">Home</Link> / <span>About</span></nav>
         <p className="eyebrow no-line mt-8">The House</p>
         <h1>A house built on <span className="gold-gradient-text">judgement.</span></h1>
         <p className="lead mt-16 max-w-600">Ancient royal authority, modern architectural elegance, and a quietly futuristic standard of service.</p>

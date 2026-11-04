@@ -14,7 +14,7 @@ export default function ContactPage() {
   return (
     <>
       <section className="page-hero"><div className="container">
-        <nav className="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> / <span>Contact</span></nav>
+        <nav className="breadcrumb" aria-label="Breadcrumb"><Link href="/">Home</Link> / <span>Contact</span></nav>
         <p className="eyebrow no-line mt-8">Private office</p>
         <h1>Begin a private conversation.</h1>
         <p className="lead mt-16 max-w-600">Tell us what you are looking for. Every enquiry is read personally and answered with complete discretion.</p>

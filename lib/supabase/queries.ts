@@ -47,7 +47,14 @@ export async function getPublicProperties(client: Client, filters: PublicPropert
     if (filters.category) query = query.eq('category', filters.category);
     if (filters.availability && filters.availability !== 'all') query = query.eq('availability', filters.availability);
     if (filters.featured) query = query.eq('featured', true);
-    if (filters.location) query = query.ilike('city', `%${sanitizeSearch(filters.location)}%`);
+    if (filters.location) {
+      // The public form promises "City or region": match the locality and the
+      // country as well, otherwise searching a district returned nothing.
+      const location = sanitizeSearch(filters.location);
+      if (location) {
+        query = query.or(`city.ilike.%${location}%,location.ilike.%${location}%,country.ilike.%${location}%`);
+      }
+    }
     if (filters.minPrice) query = query.gte('price', filters.minPrice);
     if (filters.maxPrice) query = query.lte('price', filters.maxPrice);
     if (filters.bedrooms) query = query.gte('bedrooms', filters.bedrooms);
@@ -260,31 +267,51 @@ export async function getOwnerProperty(client: Client, id: string): Promise<Quer
   } catch (e) { return fail(e); }
 }
 
-function propertyPayload(input: PropertyInput): Record<string, unknown> {
+/** Postgres unique-violation on `properties.slug` → an actionable message. */
+function friendlyPropertyError(error: { code?: string; message?: string } | null, slug: string): Error {
+  const message = error?.message ?? 'The property could not be saved.';
+  if (error?.code === '23505' || /duplicate key/i.test(message)) {
+    if (/slug/i.test(message)) {
+      return new Error(`The public address /properties/${slug} is already used by another residence. Choose a different title or URL slug.`);
+    }
+    return new Error('A property with these details already exists. Adjust the details and try again.');
+  }
+  return new Error(message);
+}
+
+/**
+ * `deriveSlug` is only enabled on CREATE. An UPDATE must never invent a slug
+ * from the title: quick actions (publish, feature, availability) send a small
+ * patch containing the title, and re-deriving would silently change a live
+ * listing's public URL — breaking shared links and search rankings.
+ */
+function propertyPayload(input: PropertyInput, deriveSlug = false): Record<string, unknown> {
   const payload: Record<string, unknown> = { ...input };
   delete payload.id;
   delete payload.owner_id;
   delete payload.created_at;
   delete payload.updated_at;
-  if (input.title && !input.slug) payload.slug = slugify(input.title);
   if (input.slug) payload.slug = slugify(input.slug);
+  else if (deriveSlug && input.title) payload.slug = slugify(input.title);
+  else delete payload.slug;
   return payload;
 }
 
 export async function createProperty(client: Client, input: PropertyInput): Promise<QueryResult<Property>> {
   try {
     const slug = slugify(input.slug || input.title);
-    const { data, error } = await client.from('properties').insert({ ...propertyPayload(input), slug })
+    const { data, error } = await client.from('properties').insert({ ...propertyPayload(input, true), slug })
       .select('*').single();
-    if (error) return fail(error);
+    if (error) return fail(friendlyPropertyError(error, slug));
     return ok(data as Property);
   } catch (e) { return fail(e); }
 }
 
 export async function updateProperty(client: Client, id: string, input: PropertyInput): Promise<QueryResult<Property>> {
   try {
-    const { data, error } = await client.from('properties').update(propertyPayload(input)).eq('id', id).select('*').single();
-    if (error) return fail(error);
+    const payload = propertyPayload(input);
+    const { data, error } = await client.from('properties').update(payload).eq('id', id).select('*').single();
+    if (error) return fail(friendlyPropertyError(error, typeof payload.slug === 'string' ? payload.slug : id));
     return ok(data as Property);
   } catch (e) { return fail(e); }
 }

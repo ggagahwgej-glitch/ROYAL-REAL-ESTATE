@@ -17,7 +17,7 @@ export default function CategoriesPage() {
   return (
     <>
       <section className="page-hero"><div className="container">
-        <nav className="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a> / <span>Collections</span></nav>
+        <nav className="breadcrumb" aria-label="Breadcrumb"><Link href="/">Home</Link> / <span>Collections</span></nav>
         <p className="eyebrow no-line mt-8">Edited with intent</p>
         <h1>Signature collections.</h1>
         <p className="lead mt-16 max-w-600">Four distinct ways to live exceptionally. Choose a collection to refine the residences below.</p>

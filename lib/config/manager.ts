@@ -118,10 +118,26 @@ function readEnv(): SupabaseConfig | null {
   return result.ok ? result.value! : null;
 }
 
+/* The shared-config probe sits on the critical path of EVERY page: until it
+   settles, `initialized` stays false and the whole website shows its loading
+   state. A hung proxy, a stalled connection or a serverless cold start that
+   never answers must therefore never be able to block the app forever. */
+const SHARED_CONFIG_TIMEOUT_MS = 8000;
+
 async function fetchJson<T>(url: string): Promise<T | null> {
-  const res = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' } });
-  if (!res.ok) return null;
-  return (await res.json()) as T;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SHARED_CONFIG_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 interface EndpointPayload {
@@ -154,7 +170,11 @@ export async function readSharedConfig(): Promise<{ config: SupabaseConfig | nul
       }
       if (fromEndpoint.url || fromEndpoint.anonKey) lastError = parsed.error ?? 'Invalid shared configuration.';
     }
-  } catch (e) { lastError = e instanceof Error ? e.message : 'Shared configuration endpoint unreachable.'; }
+  } catch (e) {
+    lastError = e instanceof Error && e.name === 'AbortError'
+      ? `The shared configuration endpoint did not respond within ${SHARED_CONFIG_TIMEOUT_MS / 1000} seconds.`
+      : e instanceof Error ? e.message : 'Shared configuration endpoint unreachable.';
+  }
 
   try {
     const fromFile = await fetchJson<EndpointPayload>('/public-config.json');

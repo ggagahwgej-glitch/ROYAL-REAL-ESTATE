@@ -209,10 +209,15 @@ create trigger on_auth_user_created after insert on auth.users
 
 -- Defence in depth: a browser/API user can never elevate itself even if a
 -- future policy accidentally grants UPDATE on profiles.
+-- The guard keys off the JWT CONTEXT, not auth.uid(): a key-only (anon)
+-- request has auth.uid() = NULL, so an "auth.uid() is not null" test would
+-- leave the flag writable from the API. PostgREST always exposes the claims
+-- GUC; the SQL Editor never does, so provisioning still works there.
 create or replace function public.protect_owner_flag()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  if new.is_owner is distinct from old.is_owner and auth.uid() is not null then
+  if new.is_owner is distinct from old.is_owner
+     and coalesce(current_setting('request.jwt.claims', true), '') <> '' then
     raise exception 'Owner privileges cannot be self-assigned. Provision the owner in the Supabase SQL Editor (supabase/owner-provisioning.sql).';
   end if;
   new.updated_at = now();

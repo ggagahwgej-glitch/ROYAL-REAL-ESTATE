@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, RotateCcw, X, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -34,17 +34,33 @@ export function PropertyBrowser({ initialFilters = {}, lockType, heading, descri
   const [cities, setCities] = useState<string[]>([]);
   const [filterOpen, setFilterOpen] = useState(true);
   const { result, media, loading, error, warning, configured, refresh } = usePublicProperties(filters);
+  // Remembers the query string THIS component wrote, so the URL can be read
+  // back without fighting our own navigation.
+  const selfWritten = useRef<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => { if (searchText !== (filters.q ?? '')) setFilters(f => ({ ...f, q: searchText, page: 1 })); }, 350);
     return () => clearTimeout(t);
   }, [searchText]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // filters → URL
   useEffect(() => {
     const query = filtersToSearch(filters);
+    selfWritten.current = query;
     const target = `/${window.location.pathname.split('/').filter(Boolean).join('/')}${query ? `?${query}` : ''}`;
     if (`${window.location.pathname}${window.location.search}` !== target) router.replace(target, { scroll: false });
   }, [filters, router]);
+
+  // URL → filters. Back/Forward (or a shared/pasted link) previously updated the
+  // address bar while the results stayed frozen on the old filter set.
+  const incomingQuery = params.toString();
+  useEffect(() => {
+    if (selfWritten.current === incomingQuery) return; // echo of our own write
+    const next = parseFiltersFromSearch(params);
+    setFilters(f => ({ ...f, ...next, ...(lockType ? { listingType: lockType } : {}) }));
+    setSearchText(next.q ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingQuery, lockType]);
 
   useEffect(() => {
     if (!config.config) { setCities([]); return; }

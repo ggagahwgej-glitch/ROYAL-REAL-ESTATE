@@ -67,7 +67,7 @@ supabase/                     schema.sql · storage.sql · owner-provisioning.sq
 public/
   brand/ sql/ images/         Static brand kit, SQL downloads, original photography
   public-config.json          Shared public bootstrap (pre-connected for this demo)
-tests/ scripts/               90 unit/security/regression tests + 61 live route/content smoke checks
+tests/ scripts/              100 unit/security/regression tests + 61 live route/content smoke checks
 ```
 
 ### Security model
@@ -164,7 +164,7 @@ npm run dev          # development server (0.0.0.0)
 npm run build        # production build
 npm run start        # production server (0.0.0.0)
 npm run typecheck    # strict TypeScript check
-npm run test         # vitest — 90 tests
+npm run test         # vitest — 100 tests
 npm run smoke        # requires a running server; BASE_URL=http://localhost:3000
 ```
 
