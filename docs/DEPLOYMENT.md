@@ -6,6 +6,41 @@ the Vercel dashboard beyond adding two environment variables.
 
 ---
 
+## 0. Read this first: "404 NOT_FOUND at /" after a two-second deploy
+
+A two-second deploy means **no build ran**. Vercel found no `package.json` and no `app/` in the
+branch it was told to build, so it fell back to a static deployment with nothing to serve — hence
+`404: NOT_FOUND` at `/`.
+
+That is a **branch** problem, not a code problem. In this repository:
+
+| Ref | Contents |
+|---|---|
+| `main` | `README.md` only — no `package.json`, no `app/` |
+| `arena/da665b45-royal-real-estate` | the complete application (174 files) |
+
+Pick one fix:
+
+1. **Change the production branch (fastest, no merge).**
+   Vercel → Project → **Settings → Git → Production Branch** → `arena/da665b45-royal-real-estate`
+   → *Save*, then **Deployments → Redeploy**. The next deploy runs a real build (≈40 s, not 2 s).
+2. **Merge the branch into `main`** (recommended long-term) — open a pull request from
+   `arena/da665b45-royal-real-estate` into `main` and merge it. `main` then contains the app and
+   every future deploy works, including previews from `main`.
+
+Either way, also confirm in **Settings → General**:
+
+* **Root Directory** = *empty* (repository root) — not `public`, not `app`.
+* **Framework Preset** = *Next.js* (also declared in `vercel.json`).
+* **Output Directory** = *default* — do **not** set `.next`. For a Next.js project an explicit
+  output directory makes Vercel treat the build folder as static output, and every route 404s.
+
+From now on this can never fail silently: `npm run build` starts with
+`scripts/vercel-preflight.mjs`, which aborts in milliseconds with an actionable message if the
+built folder has no `package.json`, no `app/`, or no page that resolves to `/`.
+
+---
+
 ## 1. Import the repository
 
 1. Vercel → **Add New… → Project → Import Git Repository** → select this repository.
@@ -16,8 +51,8 @@ the Vercel dashboard beyond adding two environment variables.
 | Framework preset | **Next.js** | `vercel.json` (`"framework": "nextjs"`) |
 | Root directory | repository root | — |
 | Install command | `npm ci` (default) | `package-lock.json` is committed |
-| Build command | `next build` (default) | `package.json` → `scripts.build` |
-| Output directory | *default* — do not override | Next.js preset handles `.next` |
+| Build command | **`npm run build`** | `vercel.json` (so the prebuild preflight runs; `next build` alone would skip it) |
+| Output directory | **default — never set `.next`** | the Next.js preset owns it; an explicit value breaks routing |
 | Node.js version | **22.x** | `package.json` → `engines.node`, `.nvmrc` |
 
 `next` is **pinned** to `15.5.28` (no caret) so the Vercel import cannot resolve a different
@@ -124,7 +159,9 @@ canonical, even before `NEXT_PUBLIC_SITE_URL` is set.
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| Deploy finishes in ~2 s and `/` is `404 NOT_FOUND` | the built branch has no application (this repo's code is not on `main`) | set the Production Branch to the code branch, or merge it into `main` — see section 0. The preflight now fails the build with this exact message. |
 | Build log: `No Output Directory named "public" found` | Output Directory was overridden during import | set it back to *default*; the Next.js preset owns `.next` |
+| Every route 404s but the build succeeded | Output Directory was set to `.next` | clear it — the Next.js preset consumes `.next` itself |
 | Site loads, every collection is empty | env vars missing or added only to Preview | add both `NEXT_PUBLIC_SUPABASE_*` to **Production** and redeploy |
 | Owner Studio shows "read-only filesystem" | expected on serverless | configure via env vars (step 2); the download artifact is an alternative |
 | `next/image` 400 on an external host | host not in `images.remotePatterns` | add it in `next.config.ts` → `remotePatterns` (`domains` is deprecated) |
@@ -137,6 +174,7 @@ canonical, even before `NEXT_PUBLIC_SITE_URL` is set.
 ## 7. Local gates before pushing
 
 ```bash
+npm run preflight     # is this folder the deployable application?
 npm run typecheck     # strict TypeScript
 npm run test          # 129 unit tests, including the SQL deploy order
 npm run schema:check  # SQL deploy order only (PGlite)

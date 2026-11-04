@@ -101,7 +101,7 @@ settings are always written to row 1 without `updated_at`, a failed cover-clear 
 cover is set, gallery renumbering writes `0..n-1` in order, and the dashboard reads all seven
 counters (degrading to zeros with a message when the database refuses).
 
-Current totals: **129 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
+Current totals: **134 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
 `tsc --noEmit` and `next build`.
 
 ## 2. Defects fixed in this pass
@@ -176,3 +176,35 @@ publishable-key-only bootstrap file, ignore rules, canonical-origin resolution f
 fallbacks, and the full SQL deploy order executed against a real database engine. Suite total:
 **129 tests in 12 files**, all passing, plus `tsc` clean, `build` clean, `smoke` 61/61 and the SSR
 audit 401/401.
+
+---
+
+# Pass 4 — the "404 NOT_FOUND at /" deployment failure
+
+Reported: the Vercel deployment finished in ~2 seconds and the root URL returned
+`404: NOT_FOUND`.
+
+## Root cause
+
+`main` — the branch Vercel builds by default — contains exactly one file:
+
+```
+$ git ls-tree -r --name-only main
+README.md
+```
+
+No `package.json`, no `app/`, no `next.config`. Framework detection therefore found nothing to
+build, Vercel performed a *static* deployment of an empty site (the two-second duration is the
+signature), and every path including `/` resolved to 404. The complete application (174 files) is
+on `arena/da665b45-royal-real-estate`; `vercel.json`, `app/page.tsx`, exports and config were never
+at fault — `app/(site)/page.tsx` resolves to `/` and exports a default.
+
+## What this pass adds
+
+| Change | Purpose |
+|---|---|
+| `scripts/vercel-preflight.mjs` + `prebuild` hook | `npm run build` now fails in milliseconds, before compiling, if the built folder has no `package.json`, no `app/`/`pages/`, no root layout, no page resolving to `/` (or one without a default export), a `basePath`, `rewrites()`, `framework !== "nextjs"`, or an `outputDirectory` override. The message names the fix. Verified: passes on this branch, exits 1 on a `main`-shaped checkout. |
+| `vercel.json` → `buildCommand: "npm run build"` | Vercel's Next preset would call `next build` directly and skip the `prebuild` hook; going through `npm run build` guarantees the preflight runs on the platform too. |
+| `vercel.json` still sets **no** `outputDirectory` | Setting `.next` makes Vercel treat the build folder as static output and 404 every route — the requested change would have *caused* the reported symptom. Documented in `docs/DEPLOYMENT.md` §0 and asserted by a test. |
+| `tests/deployment.test.ts` +5 (21 total) | Locks the root entry points (layout + page that resolves to `/`, real default export), the absence of `basePath`/`rewrites()`, the preflight hook, and the `outputDirectory` prohibition. |
+| `docs/DEPLOYMENT.md` §0 | The branch table, the two fixes (change Production Branch, or merge into `main`), the required dashboard settings, and new troubleshooting rows. |

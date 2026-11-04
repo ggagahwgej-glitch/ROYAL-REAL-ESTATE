@@ -10,7 +10,9 @@
     "test": "vitest run",
     "smoke": "node scripts/smoke.mjs",
     "audit": "node scripts/audit.mjs",
-    "schema:check": "node scripts/schema-check.mjs"
+    "schema:check": "node scripts/schema-check.mjs",
+    "prebuild": "node scripts/vercel-preflight.mjs",
+    "preflight": "node scripts/vercel-preflight.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

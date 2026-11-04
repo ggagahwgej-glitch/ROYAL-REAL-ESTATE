@@ -45,7 +45,22 @@ describe('deployment · package manifest', () => {
     // No postinstall/preinstall step: Vercel runs them before the repo is ready.
     expect(pkg.scripts?.postinstall).toBeUndefined();
     expect(pkg.scripts?.preinstall).toBeUndefined();
-    expect(pkg.scripts?.prebuild).toBeUndefined();
+    // prebuild is allowed only because it is the local, read-only preflight.
+    expect(pkg.scripts?.prebuild).toBe('node scripts/vercel-preflight.mjs');
+  });
+
+  it('runs the preflight through the Vercel build command', () => {
+    const vercel = JSON.parse(read('vercel.json')) as {
+      framework?: string;
+      buildCommand?: string;
+      outputDirectory?: string;
+    };
+    // `npm run build` is what triggers the prebuild hook; Vercel's Next preset
+    // would otherwise call `next build` directly and skip it.
+    expect(vercel.buildCommand).toBe('npm run build');
+    // Setting an output directory for a Next.js project makes Vercel serve the
+    // build folder as static output — every route, including "/", then 404s.
+    expect(vercel.outputDirectory).toBeUndefined();
   });
 
   it('ships image tooling as a dev dependency, not in the serverless bundle', () => {
@@ -68,6 +83,42 @@ describe('deployment · package manifest', () => {
   it('has a Vercel project descriptor that selects the Next.js preset', () => {
     const vercel = JSON.parse(read('vercel.json')) as { framework?: string };
     expect(vercel.framework).toBe('nextjs');
+  });
+});
+
+describe('deployment · app router entry points', () => {
+  it('ships a root layout and a page that resolves to "/"', () => {
+    expect(existsSync(path.join(root, 'app/layout.tsx'))).toBe(true);
+    // The homepage lives in a route group; route groups do not affect the URL.
+    for (const candidate of ['app/page.tsx', 'app/(site)/page.tsx']) {
+      if (existsSync(path.join(root, candidate))) {
+        expect(read(candidate)).toMatch(/export\s+default/);
+        return;
+      }
+    }
+    throw new Error('No page resolves to "/"');
+  });
+
+  it('keeps the homepage out of Suspense-only rendering', () => {
+    const page = read('app/(site)/page.tsx');
+    // A default export that renders something, not an empty shell.
+    expect(page.length).toBeGreaterThan(200);
+    expect(page).not.toMatch(/^\s*export\s+default\s+function\s*\w*\s*\([^)]*\)\s*\{\s*return\s+null;?\s*\}/m);
+  });
+
+  it('serves the site from "/" — no basePath, no root rewrite', () => {
+    const config = stripComments(read('next.config.ts'));
+    expect(config).not.toMatch(/basePath\s*:/);
+    expect(config).not.toMatch(/rewrites\s*\(/);
+  });
+
+  it('fails the build when the deployed folder is not the application', () => {
+    // The exact failure that produced "404 NOT_FOUND at /" on a two-second
+    // deploy: Vercel built a branch whose root held no package.json and no app/.
+    const script = read('scripts/vercel-preflight.mjs');
+    expect(script).toContain('package.json is missing from the build root');
+    expect(script).toContain('No app/ or pages/ directory at the build root');
+    expect(script).toContain('No page resolves to "/"');
   });
 });
 
