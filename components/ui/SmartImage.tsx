@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Emblem } from '@/components/brand/Emblem';
 import { cn } from '@/lib/utils';
@@ -21,6 +21,38 @@ export function SmartImage({ src, alt, className, fill = true, sizes = '(max-wid
   return <img src={src} alt={alt} loading={priority ? 'eager' : 'lazy'} decoding="async" className={className}
     onError={() => setFailed(true)}
     style={fill ? { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' } : undefined} />;
+}
+
+/**
+ * Card covers are painted as a background layer, never as a composited <img>.
+ *
+ * Android Chromium corrupts the raster tiles of a filtered/transformed <img>
+ * inside a rounded, clipped card — the "tiled duplicates + coloured noise"
+ * artifact that survived every filter/transform removal. Background painting
+ * happens in the parent's own paint pass: no object-fit, no replaced-element
+ * layer, no tile cache to corrupt. A probe image keeps the branded fallback.
+ */
+export function CoverImage({ src, alt, className }: { src?: string | null; alt: string; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!src) { setFailed(false); return; }
+    setFailed(false);
+    const probe = new window.Image();
+    probe.onerror = () => setFailed(true);
+    probe.src = src;
+    return () => { probe.onerror = null; };
+  }, [src]);
+
+  if (!src || failed) return <NoImage className={className} alt={alt} />;
+  return (
+    <div
+      className={cn('cover-image', className)}
+      role="img"
+      aria-label={alt}
+      data-cover-image="background"
+      style={{ backgroundImage: `url("${src.replace(/"/g, '%22')}")` }}
+    />
+  );
 }
 
 export function NoImage({ className, alt }: { className?: string; alt?: string }) {

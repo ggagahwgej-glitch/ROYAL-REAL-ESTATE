@@ -191,7 +191,7 @@ export function PropertyBrowser({ initialFilters = {}, lockType, heading, descri
         ) : (
           <>
             <div className="property-grid">
-              {result.items.map((p, i) => <PropertyCard key={p.id} property={p} media={media.filter(m => m.property_id === p.id)} priority={i < 3} />)}
+              {result.items.map((p, i) => <PropertyCard key={p.id} property={p} media={media.filter(m => m.property_id === p.id)} />)}
             </div>
             {result.pages > 1 && (
               <nav className="pagination" aria-label="Pagination">

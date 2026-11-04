@@ -42,7 +42,7 @@ export function PropertyCollection({ heading = 'The Signature Collection', eyebr
         ) : (
           <>
             <div className="property-grid">
-              {result.items.map((p, i) => <PropertyCard key={p.id} property={p} media={media.filter(m => m.property_id === p.id)} priority={i < 3} />)}
+              {result.items.map((p, i) => <PropertyCard key={p.id} property={p} media={media.filter(m => m.property_id === p.id)} />)}
             </div>
             <div className="text-center mt-48">
               <Link href="/properties" className="btn btn-outline btn-lg">Explore All Residences <ArrowUpRight size={16} /></Link>

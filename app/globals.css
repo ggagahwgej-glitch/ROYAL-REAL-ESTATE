@@ -902,3 +902,54 @@ h1,h2,h3,h4{text-wrap:balance}
 
 /* A missing Storage object falls back to the emblem inside the viewer. */
 .lightbox-fallback{position:relative;width:min(80vw,760px);aspect-ratio:4/3;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--navy)}
+
+/* ============================================================================
+   CARD IMAGE · v6 — the decisive fix for the Android Chromium artifact
+   Screenshots showed tiled duplicates and coloured noise over the card and the
+   text beneath it: a corrupted compositor tile, larger than the image box. That
+   is not a colour or filter problem — the card had every trigger at once
+   (isolation + rounded clip + opacity overlays + transform transitions + a
+   filtered replaced element). Card covers are now a background paint, and on
+   mobile the card keeps no composited layer at all.
+   ============================================================================ */
+
+/* The cover is painted by the parent box: no <img>, no object-fit, no layer. */
+.cover-image{
+  position:absolute;
+  inset:0;
+  background-color:var(--navy);
+  background-position:center center;
+  background-size:cover;
+  background-repeat:no-repeat;
+}
+
+@media (max-width:900px){
+  /* One static box: no isolation, no clip layer, no transition, no shadow. */
+  .property-card{
+    isolation:auto;
+    overflow:visible;
+    transition:none;
+    box-shadow:none;
+    transform:none;
+  }
+  /* The rounded top comes from the image frame itself, not from a clip layer. */
+  .property-image{
+    overflow:hidden;
+    border-radius:var(--r-lg) var(--r-lg) 0 0;
+    isolation:auto;
+  }
+  /* Decorative overlays are opacity layers in Chromium — remove them on mobile. */
+  .property-card::before,
+  .property-card::after,
+  .property-image::after{display:none}
+  /* Nothing inside the frame may be transformed or filtered, ever. */
+  .property-image img,
+  .cover-image,
+  .property-card:hover .property-image img,
+  .property-card:hover .cover-image{
+    transform:none !important;
+    filter:none !important;
+    transition:none !important;
+    will-change:auto !important;
+  }
+}
