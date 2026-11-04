@@ -67,7 +67,7 @@ supabase/                     schema.sql · storage.sql · owner-provisioning.sq
 public/
   brand/ sql/ images/         Static brand kit, SQL downloads, original photography
   public-config.json          Shared public bootstrap (pre-connected for this demo)
-tests/ scripts/              134 unit/security/regression tests + 61 smoke + 401 SSR quality checks
+tests/ scripts/              136 unit/security/regression tests + 61 smoke + 401 SSR quality checks
 ```
 
 ### Security model

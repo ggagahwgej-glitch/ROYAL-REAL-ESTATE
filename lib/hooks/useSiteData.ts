@@ -13,7 +13,7 @@ import { DEFAULT_SETTINGS, shortHash } from '@/lib/utils';
    fires its own identical PostgREST query. De-duplicate with a short-lived
    promise cache keyed by the active configuration. */
 const SETTINGS_TTL_MS = 15_000;
-interface SettingsCacheEntry { promise: Promise<{ data: SiteSettings | null; error: string | null; warning?: string }>; expires: number }
+interface SettingsCacheEntry { promise: Promise<{ data: SiteSettings | null; error: string | null; warning?: string; warningDetail?: string }>; expires: number }
 const settingsCache = new Map<string, SettingsCacheEntry>();
 
 export function invalidateSiteSettingsCache(): void { settingsCache.clear(); }
@@ -38,6 +38,7 @@ export function useSiteSettings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [warningDetail, setWarningDetail] = useState<string | null>(null);
   const cacheKey = config.config
     ? `${config.source}:${config.config.url}:${shortHash(config.config.anonKey)}`
     : 'none';
@@ -50,11 +51,12 @@ export function useSiteSettings() {
     if (result.data) setSettings(result.data);
     setError(result.error);
     setWarning(result.warning ?? null);
+    setWarningDetail(result.warningDetail ?? null);
     setLoading(false);
   }, [client, config.initialized, cacheKey]);
 
   useEffect(() => { void load(); }, [load]);
-  return { settings, loading, error, warning, refresh: () => load(true), configured: Boolean(config.config) };
+  return { settings, loading, error, warning, warningDetail, refresh: () => load(true), configured: Boolean(config.config) };
 }
 
 export interface PropertiesState {
@@ -64,6 +66,7 @@ export interface PropertiesState {
   error: string | null;
   /** Non-fatal: the labelled showcase catalogue is being displayed. */
   warning: string | null;
+  warningDetail: string | null;
   configured: boolean;
   refresh: () => void;
 }
@@ -76,19 +79,21 @@ export function usePublicProperties(filters: PropertyFilters): PropertiesState {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [warningDetail, setWarningDetail] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
   const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
 
   useEffect(() => {
     let cancelled = false;
     if (!config.initialized) return;
-    if (!client) { setResult({ items: [], total: 0, page: 1, perPage: filters.perPage ?? 9, pages: 1 }); setMedia([]); setLoading(false); setError(null); setWarning(null); return; }
+    if (!client) { setResult({ items: [], total: 0, page: 1, perPage: filters.perPage ?? 9, pages: 1 }); setMedia([]); setLoading(false); setError(null); setWarning(null); setWarningDetail(null); return; }
     (async () => {
-      setLoading(true); setError(null); setWarning(null);
+      setLoading(true); setError(null); setWarning(null); setWarningDetail(null);
       const parsed = JSON.parse(filtersKey) as PropertyFilters;
       const res = await getPublicProperties(client, parsed);
       if (cancelled) return;
       setWarning(res.warning ?? null);
+      setWarningDetail(res.warningDetail ?? null);
       if (res.error || !res.data) { setError(res.error); setResult({ items: [], total: 0, page: 1, perPage: filters.perPage ?? 9, pages: 1 }); setMedia([]); setLoading(false); return; }
       const page = res.data;
       const mediaRes = page.items.length ? await getMediaForProperties(client, page.items.map(p => p.id)) : { data: [], error: null };
@@ -101,5 +106,5 @@ export function usePublicProperties(filters: PropertyFilters): PropertiesState {
     return () => { cancelled = true; };
   }, [client, config.initialized, config.source, config.config?.url, filtersKey, nonce]);
 
-  return { result, media, loading, error, warning, configured: Boolean(config.config), refresh: () => setNonce(n => n + 1) };
+  return { result, media, loading, error, warning, warningDetail, configured: Boolean(config.config), refresh: () => setNonce(n => n + 1) };
 }

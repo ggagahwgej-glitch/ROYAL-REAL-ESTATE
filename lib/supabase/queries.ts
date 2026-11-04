@@ -75,7 +75,7 @@ export async function getPublicProperties(client: Client, filters: PublicPropert
     const { data, error, count } = await query.range(from, from + perPage - 1);
     if (error) {
       if (SHOWCASE_ENABLED) return { data: showcasePaged(filters), error: null,
-        warning: `Live listings could not be read (${error.message}). ${SHOWCASE_DB_NOTE}` };
+        warning: SHOWCASE_DB_NOTE, warningDetail: `Live listings could not be read: ${error.message}` };
       return fail(error);
     }
     const total = count ?? 0;
@@ -83,7 +83,7 @@ export async function getPublicProperties(client: Client, filters: PublicPropert
     return ok({ items: (data ?? []) as Property[], total, page, perPage, pages: Math.max(1, Math.ceil(total / perPage)) });
   } catch (e) {
     if (SHOWCASE_ENABLED) return { data: showcasePaged(filters), error: null,
-      warning: `Live listings could not be read (${errorMessage(e)}). ${SHOWCASE_DB_NOTE}` };
+      warning: SHOWCASE_DB_NOTE, warningDetail: `Live listings could not be read: ${errorMessage(e)}` };
     return fail(e);
   }
 }
@@ -185,7 +185,8 @@ export async function getSiteSettings(client: Client): Promise<QueryResult<SiteS
     // Still render with brand defaults, but never hide the database failure.
     if (error) {
       if (SHOWCASE_ENABLED) return { data: mergeShowcaseSettings({ ...DEFAULT_SETTINGS }), error: null,
-        warning: `Public website settings could not be read (${error.message}). Showcase presentation settings are in use.` };
+        warning: 'Curated presentation settings are in use while the website settings are being completed.',
+        warningDetail: `Public website settings could not be read: ${error.message}` };
       return { data: { ...DEFAULT_SETTINGS }, error: `Public website settings could not be read (${error.message}). The application schema may not be installed yet.` };
     }
     const row = (data as Partial<SiteSettings> | null) ?? {};
