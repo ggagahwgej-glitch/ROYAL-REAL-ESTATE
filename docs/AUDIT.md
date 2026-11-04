@@ -101,7 +101,7 @@ settings are always written to row 1 without `updated_at`, a failed cover-clear 
 cover is set, gallery renumbering writes `0..n-1` in order, and the dashboard reads all seven
 counters (degrading to zeros with a message when the database refuses).
 
-Current totals: **136 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
+Current totals: **138 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
 `tsc --noEmit` and `next build`.
 
 ## 2. Defects fixed in this pass
@@ -233,3 +233,13 @@ at fault — `app/(site)/page.tsx` resolves to `/` and exports a default.
      `tests/content.test.ts` now fails the build if a database message is interpolated into any
      visitor-facing `warning`.
 
+
+### Second live finding: the collection flashed an empty state
+
+On the deployed homepage the showcase catalogue was replaced by
+“**The collection is being prepared** — no published residences are available yet”, while `/properties`
+rendered all 20 residences from the same data source. Cause: both collection gates tested only the
+*configuration* hook (`config.loading`), never the *data* hook (`loading`), so between hydration and
+the first query resolving the component fell through to the empty state. Fixed in
+`PropertyCollection` and `PropertyBrowser` — the skeleton now holds until `configured && loading`
+is false, so a populated collection can never be replaced by an empty one. Guarded by a test.

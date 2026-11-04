@@ -26,7 +26,10 @@ export function PropertyCollection({ heading = 'The Signature Collection', eyebr
           <Link href="/properties" className="link-gold">View the full collection <ArrowUpRight /></Link>
         </div>
 
-        {!config.initialized || (config.loading && configured) ? (
+        {/* A skeleton until the FIRST query resolves: gating only on the config
+            produced a visible flash of "The collection is being prepared" over a
+            perfectly good showcase catalogue. */}
+        {!config.initialized || (config.loading && configured) || (configured && loading) ? (
           <div className="property-grid">{[0, 1, 2].map(i => <SkeletonCard key={i} />)}</div>
         ) : !configured ? (
           <SetupState config={config} compact />
