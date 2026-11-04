@@ -1,9 +1,8 @@
 /* ==================================================================
    IMPERIAL ROYAL — sovereign knight-helmet crest
-   The client's own helmet drawing, traced to vector and dressed in
-   champagne gold over crimson lacquer by scripts/prepare-crest.mjs.
-   Master artwork: public/brand/royal-crest-source.png (never redrawn)
-   Vector master:  public/brand/royal-crest.svg
+   The client's own 3D gold-and-crimson render, keyed out of its black
+   studio background by scripts/prepare-crest.mjs. Never redrawn.
+   Master artwork: public/brand/royal-crest-source.png
    Served set:     transparent WebP 96/192/384 + palette-PNG fallback
 ================================================================== */
 export type EmblemTone = 'gold' | 'mono' | 'light';
@@ -11,8 +10,8 @@ export type EmblemTone = 'gold' | 'mono' | 'light';
 /** CSS filters keep one artwork consistent across dark, mono and light uses. */
 const FILTERS: Record<EmblemTone, string> = {
   gold: 'none',
-  mono: 'grayscale(1) contrast(1.06) brightness(1.08)',
-  light: 'brightness(1.03) contrast(1.02)',
+  mono: 'grayscale(1) contrast(1.05) brightness(1.06)',
+  light: 'brightness(1.02)',
 };
 
 /** 1x/2x/3x sources for the emblem's real display sizes (36–88 px). */
@@ -29,8 +28,8 @@ export function Emblem({ tone = 'gold', className, title = 'Imperial Royal sover
         src="/brand/royal-crest.png"
         alt={title}
         draggable={false}
-        width={1024}
-        height={1024}
+        width={512}
+        height={512}
         decoding="async"
         className={className}
         style={{

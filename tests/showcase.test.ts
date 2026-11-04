@@ -202,41 +202,45 @@ describe('sovereign knight-helmet crest brand kit', () => {
     expect(tsx).not.toContain('>IR<');
   });
 
-  it('traces the client drawing to a gold-and-crimson vector master', () => {
-    const svg = read('public/brand/royal-crest.svg');
-    expect(svg.startsWith('<svg')).toBe(true);
-    expect(svg).toContain('<path id="mark"');
-    expect(svg).toMatch(/#C01D34/i); // crimson lacquer highlight
-    expect(svg).toMatch(/#FFFDF4/i); // champagne gold highlight
-    expect(svg).toMatch(/viewBox="[\d\-. ]+"/);
-    expect(readBin('public/brand/royal-crest.svg').length).toBeLessThan(40_000);
-    // the client's own drawing stays the committed source of truth
-    expect(readBin('public/brand/royal-crest-source.png').subarray(1, 4).toString()).toBe('PNG');
+  it('ships the client artwork itself, never a redrawn copy', async () => {
+    const source = readBin('public/brand/royal-crest-source.png');
+    expect(source.subarray(1, 4).toString()).toBe('PNG');
+    const meta = await sharp(source).metadata();
+    expect(meta.width).toBe(1254);           // the client's chosen render
+    expect(meta.hasAlpha).toBe(false);       // delivered on a black studio field
+
+    // the keyed master is transparent and square
+    const master = await sharp('public/brand/royal-crest.png').metadata();
+    expect(master.width).toBe(512);
+    expect(master.hasAlpha).toBe(true);
+    const print = await sharp('public/brand/royal-crest-2048.png').metadata();
+    expect(print.width).toBe(2048);
+    expect(print.hasAlpha).toBe(true);
   });
 
-  it('reuses that vector in every lockup instead of baking a bitmap', () => {
+  it('embeds that render in every lockup and keeps favicons thumbnail-weight', () => {
     const lockups = ['public/brand/emblem-gold.svg', 'public/brand/emblem-light.svg',
       'public/brand/emblem-mono.svg', 'public/brand/logo-horizontal.svg',
       'public/brand/logo-light.svg', 'public/brand/logo-footer.svg'];
     for (const f of lockups) {
       const s = read(f);
       expect(s.startsWith('<svg')).toBe(true);
-      expect(s).toContain('<path id="mark"');
+      expect(s).toContain('data:image/png;base64,');
       expect(s).not.toContain('data:image/jpeg');
       expect(s).toMatch(/IMPERIAL ROYAL|knight crest/i);
     }
-    // the single-colour edition swaps the house palette for an engraving gradient
-    expect(read('public/brand/emblem-mono.svg')).toMatch(/#C9C7C2/i);
+    // the mono edition uses the single-colour engraving raster, not the gold one
+    expect(read('public/brand/emblem-mono.svg')).not.toBe(read('public/brand/emblem-gold.svg'));
     expect(read('public/brand/logo-horizontal.svg')).toContain('PRIVATE REAL ESTATE OFFICE');
     expect(read('public/brand/logo-horizontal.svg')).not.toContain('>IR<');
-    // favicons are requested on every tab open, so they keep a tiny raster payload
+    // favicons are requested on every tab open, so they keep a tiny payload
     for (const f of ['public/favicon.svg', 'app/icon.svg']) {
       expect(read(f)).toContain('data:image/png;base64,');
       expect(readBin(f).length).toBeLessThan(20_000);
     }
   });
 
-  it('serves a responsive transparent raster set plus a print master', async () => {
+  it('serves a responsive transparent WebP set over a PNG fallback', async () => {
     const tsx = read('components/brand/Emblem.tsx');
     expect(tsx).toContain('srcSet');
     expect(tsx).toContain('royal-crest-192.webp');
@@ -246,15 +250,9 @@ describe('sovereign knight-helmet crest brand kit', () => {
       expect(meta.width).toBe(size);
       expect(meta.hasAlpha).toBe(true);
     }
-    const master = await sharp('public/brand/royal-crest.png').metadata();
-    expect(master.width).toBe(1024);
-    expect(master.hasAlpha).toBe(true);
-    const print = await sharp('public/brand/royal-crest-4096.png').metadata();
-    expect(print.width).toBe(4096);
-    expect(print.hasAlpha).toBe(true);
-    // the 52 px header emblem must never ship the megabyte source again
+    // the 52 px header emblem must never ship the print master
     expect(readBin('public/brand/royal-crest-96.webp').length).toBeLessThan(25_000);
-    expect(readBin('public/brand/royal-crest.png').length).toBeLessThan(120_000);
+    expect(readBin('public/brand/royal-crest.png').length).toBeLessThan(150_000);
   });
 
   it('ships the full raster icon set and an honest manifest', async () => {

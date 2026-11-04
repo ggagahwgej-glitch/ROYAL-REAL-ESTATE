@@ -55,7 +55,7 @@ app/
   api/public-config/          Public bootstrap config (GET) + owner-gated publish (POST/DELETE)
   sitemap.ts robots.ts manifest.ts icon.svg
 components/
-  brand/                      Traced knight-helmet crest (gold + crimson) + 9 SVG lockups, WebP set, 6 PNG icons
+  brand/                      Client knight-helmet render (gold + crimson) + 9 SVG lockups, WebP set, 6 PNG icons
   site/ admin/ ui/            Shared design-system components
 lib/
   config/                     ONE dynamic configuration manager (+ server reader, validation)
@@ -99,20 +99,35 @@ Both the public site and the Owner Studio resolve connections from
   Metallic Gold `#D4B36A`, Antique Gold `#927442`, Ivory `#F4F0E7` — with **crimson lacquer**
   `#C01D34` / `#961229` / `#5C0A17` as the second house colour (`--crimson*` tokens in `app/globals.css`).
 * Cormorant Garamond (display) + Inter (body), loaded at runtime — no build-time font fetch.
-* **Sovereign knight-helmet crest** — the client's own helmet drawing, kept as
-  `public/brand/royal-crest-source.png` and never redrawn. The build only adds the finish: the
-  silhouette is traced to **true vector curves**, then dressed in a polished champagne-gold face
-  over a deep crimson lacquer backing, with a crimson inner rim and a champagne edge light. Because
-  every lockup reuses that vector, the mark stays razor-sharp from a 16 px favicon to a 20 000 px
-  print master, and ships in `gold`, `mono` (single-colour engraving) and `light` tones.
-* The website streams a **transparent WebP set at 96 / 192 / 384 px** (1x / 2x / 3x) over a palette-PNG
-  fallback, so the 52 px header crest costs ~3 KB. Launcher icons are flattened to opaque obsidian
+* **Sovereign knight-helmet crest** — the client's own 3D gold-and-crimson render, kept exactly as
+  delivered in `public/brand/royal-crest-source.png` (1254 px, black studio background). The build
+  only prepares it: the black field is keyed out to a feathered alpha edge and de-fringed, the mark
+  is centred on a square stage, and the silhouette is traced to vector **for the 16/32 px tab icons**,
+  where the 3D shading would collapse into noise. Nothing is redrawn or recoloured.
+* The website streams a **transparent WebP set at 96 / 192 / 384 px** (1x / 2x / 3x) over a 73 KB PNG
+  fallback, so the 52 px header crest costs ~7 KB. Every lockup embeds the same 384 px render, and the
+  mono edition uses a single-colour engraving raster. Launcher icons are flattened to opaque obsidian
   (iOS composites transparency onto black); tab favicons stay transparent.
 * Regenerate everything with `python3 scripts/generate-brand.py` — it runs
-  `scripts/prepare-crest.mjs`, which cleans the drawing into a two-tone mask, traces it, applies the
-  gold/crimson finish and rebuilds every raster size, icon and SVG lockup.
-* Need a bigger raster? `node scripts/export-hires.mjs 20000` renders the vector at any size
-  (16 384 px is already shipped in `brand-exports/`); nothing is ever upscaled from a bitmap.
+  `scripts/prepare-crest.mjs`, which keys the artwork, traces the icon silhouette and rebuilds every
+  raster size, icon and SVG lockup. `node scripts/export-hires.mjs 8192` resamples the print master
+  when a bigger raster is needed (the artwork's genuine detail ends at its 1254 px source).
+
+| Asset | Use |
+|---|---|
+| `public/brand/royal-crest-source.png` | the client's original 1254 px render — the source of truth |
+| `public/brand/royal-crest.svg` | self-contained SVG master (embedded 1024 px render) for design tools |
+| `public/brand/royal-crest-2048.png` | 2048 px transparent print master |
+| `public/brand/royal-crest.png` | 512 px transparent palette-PNG web fallback |
+| `public/brand/royal-crest-{96,192,384,768}.webp` | responsive transparent emblem (1x / 2x / 3x / hero) |
+| `public/brand/royal-crest.jpg` | opaque obsidian tile — email signatures, social cards |
+| `public/brand/royal-crest-mono-384.png` | single-colour engraving edition |
+| `public/brand/emblem-{gold,mono,light}.svg` | single-emblem lockups (same keyed render) |
+| `public/brand/logo-{horizontal,light,footer}.svg` | horizontal wordmark lockups (same keyed render) |
+| `public/brand/favicon.svg`, `public/favicon.svg`, `app/icon.svg` | SVG favicons (~7 KB, 96 px payload) |
+| `public/favicon-{16,32}.png` | vector silhouette — legible at tab size |
+| `public/favicon-64.png`, `public/apple-touch-icon.png`, `public/brand-mark-{192,512}.png` | full render; launcher icons flattened to opaque obsidian |
+
 * Restrained motion with full `prefers-reduced-motion` support; responsive from 360px to 1920px.
 
 | Asset | Use |
@@ -172,7 +187,7 @@ with a clearly labelled showcase catalogue. On first open you will see:
 | Residences | **20** | Homepage collection, `/properties`, `/buy`, `/rent`, `/categories`, detail pages, sitemap and Owner Studio → Properties |
 | Gallery images | **60** | Property cards, lightboxes, detail galleries and Owner Studio → Media |
 | Sample references | **8** | Homepage testimonials section with **gold star ratings**, Owner Studio → Website settings → Testimonials |
-| Brand kit | **Sovereign knight-helmet crest** — the client's own helmet drawing, traced to vector and finished in champagne gold over crimson lacquer (the old generic shield / `IR` monogram is retired) | Header, footer, favicon, hero badge, `public/brand/*`, `scripts/generate-brand.py` |
+| Brand kit | **Sovereign knight-helmet crest** — the client's own 3D gold-and-crimson render, keyed out of its black studio background (the old generic shield / `IR` monogram is retired) | Header, footer, favicon, hero badge, `public/brand/*`, `scripts/generate-brand.py` |
 
 Everything is marked *Showcase* / *Sample*. No `AggregateRating` structured data is emitted for the
 sample references, and the site states plainly that they are illustrative, not genuine endorsements.

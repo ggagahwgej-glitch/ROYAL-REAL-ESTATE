@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""Generate the IMPERIAL ROYAL brand kit from the traced knight-helmet crest.
+"""Generate the IMPERIAL ROYAL brand kit from the client's 3D gold/crimson render.
 
-`prepare-crest.mjs` turns the client's original drawing into
-`public/brand/royal-crest.svg` — a true vector mark dressed in champagne gold
-over crimson lacquer, plus every raster size. This script reuses that same
-vector (never a bitmap) inside every lockup, so:
+`prepare-crest.mjs` keys the black studio background out of the client's artwork,
+centres it on a square stage, traces the silhouette for the tab icons and exports
+the whole raster set. This script embeds that same artwork — never a re-drawing —
+into every SVG lockup, so:
 
-  * the horizontal / footer / light wordmarks stay sharp at any size;
-  * the favicons ship a 96 px palette PNG (a vector favicon would cost more
-    bytes on every tab request than it saves);
-  * the React Emblem and the static lockups can never drift apart.
+  * the emblem, horizontal, footer and light lockups are self-contained and
+    visually identical to the site;
+  * the mono lockup uses the single-colour engraving raster;
+  * the favicons ship a 96 px palette PNG (a heavier payload on every tab
+    request buys nothing at 16 px);
+  * the React Emblem and the static kit can never drift apart.
 
 Run: python3 scripts/generate-brand.py
 """
 from __future__ import annotations
 import base64
-import re
 import subprocess
 from pathlib import Path
 
@@ -24,39 +25,21 @@ BRAND = ROOT / "public" / "brand"
 
 subprocess.run(["node", str(ROOT / "scripts" / "prepare-crest.mjs")], check=True, cwd=ROOT)
 
-MASTER = (BRAND / "royal-crest.svg").read_text()
-VIEWBOX = re.search(r'viewBox="([^"]+)"', MASTER).group(1)
-# defs (path + gradients + clip) and the painted art, reused verbatim
-DEFS = MASTER.split("<defs>")[1].split("</defs>")[0]
-ART = MASTER.split("</defs>")[1].rsplit("</svg>", 1)[0]
 
-# Single-colour engraving variant for one-colour print and embossing.
-MONO_DEFS = """    <linearGradient id="mono" x1=".14" y1="0" x2=".86" y2="1">
-      <stop offset="0" stop-color="#FFFFFF"/><stop offset=".55" stop-color="#C9C7C2"/><stop offset="1" stop-color="#8E8B85"/>
-    </linearGradient>
-    <linearGradient id="monoDeep" x1=".2" y1="0" x2=".8" y2="1">
-      <stop offset="0" stop-color="#9C9992"/><stop offset="1" stop-color="#5B5954"/>
-    </linearGradient>
-"""
-
-FAVICON_PNG = base64.b64encode((BRAND / "royal-crest-96.png").read_bytes()).decode("ascii")
-FAVICON_HREF = "data:image/png;base64," + FAVICON_PNG
+def payload(name: str) -> str:
+    return "data:image/png;base64," + base64.b64encode((BRAND / name).read_bytes()).decode("ascii")
 
 
-def crest(width: int, height: int, x: int = 0, y: int = 0, mono: bool = False) -> str:
-    """Nest the vector mark inside another SVG, in the mark's own coordinate space."""
-    defs, art = (MONO_DEFS + DEFS, ART) if mono else (DEFS, ART)
-    if mono:
-        art = art.replace("url(#gold)", "url(#mono)").replace("url(#lacquer)", "url(#monoDeep)")
-    return (f'<svg x="{x}" y="{y}" width="{width}" height="{height}" viewBox="{VIEWBOX}">'
-            f"<defs>{defs}</defs>{art}</svg>")
+CREST = payload("royal-crest-384.png")        # full colour, for the lockups and emblems
+MONO = payload("royal-crest-mono-384.png")    # single-colour engraving edition
+FAVICON = payload("royal-crest-96.png")       # tab-size payload
 
 
 def emblem_svg(tone: str) -> str:
-    mono = tone == "mono"
+    href = MONO if tone == "mono" else CREST
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 384" role="img" aria-label="Imperial Royal knight-helmet crest">
-  <title>Imperial Royal — sovereign knight crest, {tone} edition</title>
-  {crest(384, 384, mono=mono)}
+  <title>Imperial Royal — sovereign knight crest, gold and crimson ({tone} edition)</title>
+  <image x="0" y="0" width="384" height="384" href="{href}"/>
 </svg>
 '''
 
@@ -64,7 +47,7 @@ def emblem_svg(tone: str) -> str:
 def favicon_svg() -> str:
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 384" role="img" aria-label="Imperial Royal knight-helmet crest">
   <title>Imperial Royal — sovereign knight crest, favicon</title>
-  <image x="0" y="0" width="384" height="384" href="{FAVICON_HREF}"/>
+  <image x="0" y="0" width="384" height="384" href="{FAVICON}"/>
 </svg>
 '''
 
@@ -76,7 +59,7 @@ def lockup_svg(tone: str) -> str:
     rule = "rgba(198,164,90,.42)" if dark else "rgba(110,82,39,.38)"
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 150" role="img" aria-label="Imperial Royal — private real estate office">
   <title>Imperial Royal — Private Real Estate Office, Est. MMXXIV</title>
-  {crest(144, 144, x=4, y=3)}
+  <image x="4" y="3" width="144" height="144" href="{CREST}"/>
   <line x1="166" y1="24" x2="166" y2="126" stroke="{rule}" stroke-width="1"/>
   <text x="190" y="65" font-family="Cormorant Garamond, Georgia, serif" font-size="43" font-weight="500"
         letter-spacing="9" fill="{word}">IMPERIAL</text>
@@ -102,10 +85,9 @@ TARGETS = {
 
 EMBLEM_TSX = '''/* ==================================================================
    IMPERIAL ROYAL — sovereign knight-helmet crest
-   The client's own helmet drawing, traced to vector and dressed in
-   champagne gold over crimson lacquer by scripts/prepare-crest.mjs.
-   Master artwork: public/brand/royal-crest-source.png (never redrawn)
-   Vector master:  public/brand/royal-crest.svg
+   The client's own 3D gold-and-crimson render, keyed out of its black
+   studio background by scripts/prepare-crest.mjs. Never redrawn.
+   Master artwork: public/brand/royal-crest-source.png
    Served set:     transparent WebP 96/192/384 + palette-PNG fallback
 ================================================================== */
 export type EmblemTone = 'gold' | 'mono' | 'light';
@@ -113,8 +95,8 @@ export type EmblemTone = 'gold' | 'mono' | 'light';
 /** CSS filters keep one artwork consistent across dark, mono and light uses. */
 const FILTERS: Record<EmblemTone, string> = {
   gold: 'none',
-  mono: 'grayscale(1) contrast(1.06) brightness(1.08)',
-  light: 'brightness(1.03) contrast(1.02)',
+  mono: 'grayscale(1) contrast(1.05) brightness(1.06)',
+  light: 'brightness(1.02)',
 };
 
 /** 1x/2x/3x sources for the emblem's real display sizes (36–88 px). */
@@ -131,8 +113,8 @@ export function Emblem({ tone = 'gold', className, title = 'Imperial Royal sover
         src="/brand/royal-crest.png"
         alt={title}
         draggable={false}
-        width={1024}
-        height={1024}
+        width={512}
+        height={512}
         decoding="async"
         className={className}
         style={{
@@ -151,7 +133,7 @@ for rel, content in TARGETS.items():
     (ROOT / rel).write_text(content)
 (ROOT / "components" / "brand" / "Emblem.tsx").write_text(EMBLEM_TSX)
 
-print(f"Vector lockups: {len(TARGETS)} (crest reused from royal-crest.svg, {len(MASTER) // 1024} KB master)")
+print(f"SVG lockups: {len(TARGETS)} (client render embedded at 384 px, mono uses the engraving raster)")
 print("React emblem: components/brand/Emblem.tsx (96/192/384 srcSet + PNG fallback)")
-print("Raster icons: favicon-16/32/64, apple-touch-icon, brand-mark-192, brand-mark-512")
-print("Print: royal-crest.svg (lossless at any size) + royal-crest-4096.png")
+print("Raster icons: favicon-16/32 (vector silhouette), favicon-64, apple-touch, brand-mark-192/512")
+print("Print: royal-crest-2048.png · design: royal-crest.svg (embedded 1024)")
