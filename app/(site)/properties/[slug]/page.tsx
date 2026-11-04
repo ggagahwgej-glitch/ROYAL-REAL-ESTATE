@@ -1,11 +1,10 @@
 import type { Metadata } from 'next';
-import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { PropertyDetail } from '@/components/site/PropertyDetail';
-import { Loading } from '@/components/ui/UI';
 import { getServerConfig } from '@/lib/config/server';
 import { getServerSupabaseClient } from '@/lib/supabase/factory';
 import { getMediaForProperty, getPublicPropertyBySlug } from '@/lib/supabase/queries';
+import type { PropertyMedia } from '@/lib/types';
 import { truncate } from '@/lib/utils';
 import { getSiteUrl } from '@/lib/config/site-url';
 import { SHOWCASE_ENABLED, SHOWCASE_MEDIA, findShowcaseBySlug } from '@/lib/showcase';
@@ -59,6 +58,22 @@ export default async function PropertyPage({ params }: Params) {
   const { slug } = await params;
   const { property: p, error: queryError } = await serverProperty(slug);
   const BASE = await getSiteUrl();
+
+  /* Server-render the gallery as well: the page previously shipped only a
+     loading skeleton, so crawlers and link previews saw no residence at all. */
+  let initialMedia: PropertyMedia[] = [];
+  if (p) {
+    try {
+      const { config } = await getServerConfig();
+      if (config) {
+        const media = await getMediaForProperty(getServerSupabaseClient(config), p.id);
+        initialMedia = [
+          ...(SHOWCASE_ENABLED ? SHOWCASE_MEDIA.filter(m => m.property_id === p.id) : []),
+          ...(media.data ?? []),
+        ];
+      }
+    } catch { /* the client component will fetch the gallery */ }
+  }
   // Only a hard 404 when a configured backend successfully confirms the listing is absent.
   // A local-only configuration still renders client-side, so it must never be 404'd here.
   if (p === null && !queryError && (await getServerConfig()).config) notFound();
@@ -77,7 +92,7 @@ export default async function PropertyPage({ params }: Params) {
   return (
     <>
       {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />}
-      <Suspense fallback={<Loading />}><PropertyDetail slug={slug} /></Suspense>
+      <PropertyDetail slug={slug} initialProperty={p} initialMedia={initialMedia} />
     </>
   );
 }

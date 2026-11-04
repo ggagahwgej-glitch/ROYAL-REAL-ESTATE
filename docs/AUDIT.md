@@ -79,3 +79,55 @@ end $$;
 
 No data change, no downtime. Owner provisioning from the SQL Editor continues to work because the
 editor has no request JWT context.
+
+---
+
+# Pass 2 — full verification sweep + presentation upgrade
+
+Date: 2026-11-04 (same branch)
+
+## 1. New automated coverage
+
+`scripts/audit.mjs` (`npm run audit`) crawls every public and studio route against a running
+production build and asserts **401 structural conditions** the eye would otherwise catch late:
+status codes, `html[lang]`, titles, meta descriptions, canonical URLs, `og:image`, admin
+`noindex`, exactly one `<h1>` on public pages, duplicate DOM ids, missing `alt` text, unlabelled
+form controls, unnamed icon buttons, empty links, `target="_blank"` without `rel`, JSON-LD that
+fails to parse, `undefined`/`NaN` leaking into copy, every internal link resolving, and the
+presence of the security headers. It exits non-zero, so it can gate a deploy.
+
+`tests/admin-flows.test.ts` adds 7 unit tests for the studio write paths that previously had none:
+settings are always written to row 1 without `updated_at`, a failed cover-clear stops before the
+cover is set, gallery renumbering writes `0..n-1` in order, and the dashboard reads all seven
+counters (degrading to zeros with a message when the database refuses).
+
+Current totals: **107 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
+`tsc --noEmit` and `next build`.
+
+## 2. Defects fixed in this pass
+
+| Severity | Defect | Fix |
+|---|---|---|
+| High | `/properties/[slug]` server-rendered **only a loading skeleton** — no `<h1>`, no price, no gallery in the HTML. Crawlers, link previews and slow connections saw an empty page. | The page now fetches the residence server-side and passes it (with its gallery) into the client component for hydration; the client no longer re-fetches the record it was given. |
+| High | A single failed gallery sub-query replaced the **entire residence page** with an error notice. | A degraded gallery is now an inline warning; the residence always renders. |
+| Medium | Nothing stopped a server-rendered residence from being swapped for a skeleton once the client booted (config was not initialised on the server). | The loading/setup gates only apply when there is no server-provided record. |
+| Low | Anchor targets (`#collection`, `#philosophy`, `#pillars`) scrolled underneath the fixed header. | `[id] { scroll-margin-top: header + 34px }`. |
+| Low | 401 audit also flagged missing `content-type` hardening expectations — headers were already correct and are now continuously asserted. | Audit only. |
+
+## 3. Presentation pass (v4, additive)
+
+* **Typography** — `text-wrap: balance` on headings and `pretty` on paragraphs, tabular figures for
+  prices, counters and stats (so digits stop jittering), kerning/ligatures enabled on the display
+  serif.
+* **Colour & ornament** — a single gold hairline across the top edge of property cards, studio
+  cards and stat cards; the footer's warm pool of light moved into the background so it can never
+  wash over type; hero now fades into the page instead of cutting.
+* **Interaction** — consistent gold focus ring for keyboard users, metallic edge and pressed state
+  on gold buttons, arrow drift on gold links, calmer image grading with a richer hover grade.
+* **Studio** — glassier top bar, hairline active state in the sidebar, denser table typography,
+  framed login card with an emblem halo drawn purely in CSS (no new assets), quieter scrollbars.
+* **Words** — “Refine the collection”, a more confident collection lead, and a collections
+  introduction that states the promise instead of repeating the UI.
+
+No brand asset was redrawn: the approved 3D render remains the only mark, and every existing
+brand-kit weight test still passes.

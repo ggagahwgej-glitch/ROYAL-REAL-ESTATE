@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { MapPin, BedDouble, Bath, Maximize2, CalendarDays, Layers3, Check, Expand, ArrowUpRight, MessageCircle, Share2, PlayCircle, ShieldCheck } from 'lucide-react';
 import { SmartImage } from '@/components/ui/SmartImage';
@@ -16,14 +16,21 @@ import type { Property, PropertyMedia } from '@/lib/types';
 import { coverImage, formatArea, formatNumber, formatPrice, whatsappLink } from '@/lib/utils';
 import { resolvePropertyMap } from '@/lib/maps';
 
-export function PropertyDetail({ slug }: { slug: string }) {
+export function PropertyDetail({ slug, initialProperty = null, initialMedia = [] }: {
+  slug: string;
+  /** Server-rendered residence: keeps the <h1>, price and gallery in the HTML. */
+  initialProperty?: Property | null;
+  initialMedia?: PropertyMedia[];
+}) {
   const config = useSupabaseConfig();
   const { settings } = useSiteSettings();
-  const [property, setProperty] = useState<Property | null>(null);
-  const [media, setMedia] = useState<PropertyMedia[]>([]);
+  const [property, setProperty] = useState<Property | null>(initialProperty);
+  const [media, setMedia] = useState<PropertyMedia[]>(initialMedia);
   const [related, setRelated] = useState<Property[]>([]);
   const [relatedMedia, setRelatedMedia] = useState<PropertyMedia[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialProperty);
+  // The server already provided this record — do not fetch it a second time.
+  const seeded = useRef(initialProperty && initialProperty.slug === slug ? initialProperty : null);
   const [error, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
@@ -35,8 +42,12 @@ export function PropertyDetail({ slug }: { slug: string }) {
     const client = getSupabaseClient(config.config);
     if (!client) { setLoading(false); return; }
     (async () => {
-      setLoading(true); setError(null);
-      const res = await getPublicPropertyBySlug(client, slug);
+      if (!seeded.current) setLoading(true);
+      setError(null);
+      const res = seeded.current
+        ? { data: seeded.current, error: null }
+        : await getPublicPropertyBySlug(client, slug);
+      seeded.current = null;
       if (cancelled) return;
       if (res.error) { setError(res.error); setLoading(false); return; }
       if (!res.data) { setProperty(null); setLoading(false); return; }
@@ -59,9 +70,13 @@ export function PropertyDetail({ slug }: { slug: string }) {
 
   const wa = whatsappLink(settings.whatsapp, property ? `Hello, I would like to enquire about ${property.title}.` : undefined);
 
-  if (!config.initialized || loading) return <div className="container section"><Loading label="Preparing the residence dossier…" /></div>;
-  if (!config.config) return <div className="container section"><SetupState config={config} compact /></div>;
-  if (error) return <div className="container section"><Notice tone="error" title="This residence could not be loaded">{error}</Notice><div className="mt-24"><Link href="/properties" className="btn btn-outline">Back to properties</Link></div></div>;
+  // A residence rendered on the server must never fall back to a skeleton: the
+  // markup (title, price, gallery) is the page that crawlers and previews read.
+  if (loading || (!config.initialized && !property)) return <div className="container section"><Loading label="Preparing the residence dossier…" /></div>;
+  if (!config.config && !property) return <div className="container section"><SetupState config={config} compact /></div>;
+  // A failed gallery read is a degraded page, not a dead one — never blank a
+  // live residence because one sub-query failed.
+  if (error && !property) return <div className="container section"><Notice tone="error" title="This residence could not be loaded">{error}</Notice><div className="mt-24"><Link href="/properties" className="btn btn-outline">Back to properties</Link></div></div>;
   if (!property) return <div className="container section"><EmptyState title="Residence not found" description="This listing may have been unpublished, renamed, or is no longer available." action={<Link href="/properties" className="btn btn-gold">Browse the collection</Link>} /></div>;
 
   const images = media.filter(m => m.kind === 'image');
@@ -118,6 +133,8 @@ export function PropertyDetail({ slug }: { slug: string }) {
           ) : (
             <div className="detail-gallery" style={{ gridTemplateRows: '260px' }}><div className="gallery-cell" style={{ gridColumn: 'span 2', cursor: 'default' }}><SmartImage src={null} alt="No images available" /></div></div>
           )}
+
+          {error && property && <Notice tone="warning" className="mt-16">{error} The residence details below are unaffected.</Notice>}
 
           {media.some(m => m.kind === 'video') && (
             <div className="mt-24 flex gap-12 wrap">

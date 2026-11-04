@@ -8,7 +8,8 @@
     "start": "next start -H 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "audit": "node scripts/audit.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

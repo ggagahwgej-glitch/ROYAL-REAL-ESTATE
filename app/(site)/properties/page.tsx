@@ -17,7 +17,7 @@ export default function PropertiesPage() {
         <nav className="breadcrumb" aria-label="Breadcrumb"><Link href="/">Home</Link> / <span>Properties</span></nav>
         <p className="eyebrow no-line mt-8">The complete collection</p>
         <h1>Find your exceptional address.</h1>
-        <p className="lead mt-16 max-w-600">Explore every published residence. Refine by location, collection, price and specification.</p>
+        <p className="lead mt-16 max-w-600">Every residence in the collection, presented without compromise — refine by destination, collection, price and specification.</p>
       </div></section>
       <section className="section-sm"><Suspense fallback={<Loading />}><PropertyBrowser /></Suspense></section>
     </>

@@ -82,7 +82,7 @@ export function PropertyBrowser({ initialFilters = {}, lockType, heading, descri
           <span className="tiny muted">Illustrative residences for this demonstration. Filters, search and pagination are fully working.</span></div>}
         <div className="filter-panel mt-48">
           <div className="flex between center gap-16 wrap mb-24">
-            <div className="flex center gap-12"><SlidersHorizontal size={17} className="gold" /><h2 className="h4">Refine your search</h2>{active > 0 && <span className="badge badge-gold">{active} active</span>}</div>
+            <div className="flex center gap-12"><SlidersHorizontal size={17} className="gold" /><h2 className="h4">Refine the collection</h2>{active > 0 && <span className="badge badge-gold">{active} active</span>}</div>
             <div className="flex gap-12 center wrap">
               <button className="link-gold" onClick={() => setFilterOpen(o => !o)}>{filterOpen ? 'Hide filters' : 'Show filters'}</button>
               <button className="btn btn-ghost btn-sm" onClick={reset}><RotateCcw size={14} /> Reset</button>

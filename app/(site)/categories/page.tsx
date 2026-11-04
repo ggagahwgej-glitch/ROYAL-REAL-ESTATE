@@ -20,7 +20,7 @@ export default function CategoriesPage() {
         <nav className="breadcrumb" aria-label="Breadcrumb"><Link href="/">Home</Link> / <span>Collections</span></nav>
         <p className="eyebrow no-line mt-8">Edited with intent</p>
         <h1>Signature collections.</h1>
-        <p className="lead mt-16 max-w-600">Four distinct ways to live exceptionally. Choose a collection to refine the residences below.</p>
+        <p className="lead mt-16 max-w-600">Four distinct ways to live exceptionally. Each collection is edited by hand and answered privately.</p>
       </div></section>
 
       <section className="section-sm"><div className="container">
