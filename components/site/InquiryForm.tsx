@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { Send, CheckCircle2, MessageCircle, AlertCircle } from 'lucide-react';
 import { Notice } from '@/components/ui/UI';
@@ -14,6 +14,10 @@ export function InquiryForm({ propertyId, propertyTitle, settings, compact = fal
   propertyId?: string | null; propertyTitle?: string; settings?: Partial<SiteSettings> | null; compact?: boolean; heading?: string;
 }) {
   const config = useSupabaseConfig();
+  /* Generated ids: the form can appear twice on one page (contact + residence),
+     and duplicate label targets break every association and the SSR audit. */
+  const uid = useId();
+  const fieldId = (name: string) => `${uid}-inq-${name}`;
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: propertyTitle ? `I would like to arrange a private viewing of ${propertyTitle}.` : '' });
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -53,19 +57,19 @@ export function InquiryForm({ propertyId, propertyTitle, settings, compact = fal
       {!compact && <><p className="eyebrow no-line mb-8">Private enquiry</p><h3 className="h3 mb-16">{heading}</h3>
         <p className="small muted mb-24">Every enquiry is handled personally and in confidence.</p></>}
       <form onSubmit={submit} className="grid gap-16" noValidate>
-        <div className="field"><label className="label" htmlFor="inq-name">Full name</label>
-          <input id="inq-name" className={`input ${errors.name ? 'input-error' : ''}`} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Your name" autoComplete="name" />
+        <div className="field"><label className="label" htmlFor={fieldId('name')}>Full name</label>
+          <input id={fieldId('name')} className={`input ${errors.name ? 'input-error' : ''}`} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Your name" autoComplete="name" />
           {errors.name && <span className="field-error"><AlertCircle size={13} />{errors.name}</span>}</div>
         <div className="form-grid">
-          <div className="field"><label className="label" htmlFor="inq-email">Email</label>
-            <input id="inq-email" type="email" className={`input ${errors.email ? 'input-error' : ''}`} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="you@example.com" autoComplete="email" />
+          <div className="field"><label className="label" htmlFor={fieldId('email')}>Email</label>
+            <input id={fieldId('email')} type="email" className={`input ${errors.email ? 'input-error' : ''}`} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="you@example.com" autoComplete="email" />
             {errors.email && <span className="field-error"><AlertCircle size={13} />{errors.email}</span>}</div>
-          <div className="field"><label className="label" htmlFor="inq-phone">Phone <span className="muted">(optional)</span></label>
-            <input id="inq-phone" type="tel" className={`input ${errors.phone ? 'input-error' : ''}`} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+91 …" autoComplete="tel" />
+          <div className="field"><label className="label" htmlFor={fieldId('phone')}>Phone <span className="muted">(optional)</span></label>
+            <input id={fieldId('phone')} type="tel" className={`input ${errors.phone ? 'input-error' : ''}`} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+91 …" autoComplete="tel" />
             {errors.phone && <span className="field-error"><AlertCircle size={13} />{errors.phone}</span>}</div>
         </div>
-        <div className="field"><label className="label" htmlFor="inq-message">Message</label>
-          <textarea id="inq-message" className={`textarea ${errors.message ? 'input-error' : ''}`} value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} placeholder="Tell us what you are looking for…" />
+        <div className="field"><label className="label" htmlFor={fieldId('message')}>Message</label>
+          <textarea id={fieldId('message')} className={`textarea ${errors.message ? 'input-error' : ''}`} value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} placeholder="Tell us what you are looking for…" />
           {errors.message && <span className="field-error"><AlertCircle size={13} />{errors.message}</span>}</div>
 
         {status === 'success' && <Notice tone="success" title="Enquiry received"><CheckCircle2 size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {message}</Notice>}

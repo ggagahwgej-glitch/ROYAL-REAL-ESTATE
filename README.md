@@ -67,7 +67,7 @@ supabase/                     schema.sql · storage.sql · owner-provisioning.sq
 public/
   brand/ sql/ images/         Static brand kit, SQL downloads, original photography
   public-config.json          Shared public bootstrap (pre-connected for this demo)
-tests/ scripts/              149 unit/security/regression tests + 61 smoke + 401 SSR quality checks
+tests/ scripts/              168 unit/security/regression tests + 61 smoke + 401 SSR quality checks
 ```
 
 ### Security model
@@ -173,7 +173,7 @@ network access, a generated file or a writable disk.
 2. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (publishable/anon key only —
    never a service-role key) to **Production**, **Preview** and **Development**.
 3. Run the Supabase scripts in order: `schema.sql` → `storage.sql` → `owner-provisioning.sql` →
-   `showcase-setup.sql`, then `verify-schema.sql` to confirm 37/37.
+   `showcase-setup.sql`, then `verify-schema.sql` to confirm 38/38.
 4. `BASE_URL=https://your-domain.com npm run smoke && npm run audit`.
 
 Full detail — resolution order for configuration, read-only-serverless behaviour, schema-drift

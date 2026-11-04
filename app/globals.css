@@ -899,3 +899,6 @@ h1,h2,h3,h4{text-wrap:balance}
 .media-checklist li.ready .tick{border-color:rgba(198,164,90,.55);color:var(--gold)}
 .media-checklist li.ready{color:var(--ivory)}
 .tab .tab-lock{opacity:.55;margin-left:6px;vertical-align:middle}
+
+/* A missing Storage object falls back to the emblem inside the viewer. */
+.lightbox-fallback{position:relative;width:min(80vw,760px);aspect-ratio:4/3;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--navy)}

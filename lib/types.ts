@@ -96,6 +96,11 @@ export interface Testimonial {
   sample?: boolean;
 }
 
+export interface HeroStat {
+  value: string;
+  label: string;
+}
+
 export interface SiteSettings {
   id: number;
   business_name: string;
@@ -109,6 +114,8 @@ export interface SiteSettings {
   hero_heading: string | null;
   hero_subheading: string | null;
   hero_image: string | null;
+  /** The three figures under the hero heading. Editable in Owner Studio. */
+  hero_stats: HeroStat[];
   social: Record<string, string>;
   footer_text: string | null;
   footer_note: string | null;

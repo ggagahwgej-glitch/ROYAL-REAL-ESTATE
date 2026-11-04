@@ -96,6 +96,11 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   hero_heading: 'Where Exceptional Living Meets Timeless Elegance.',
   hero_subheading: 'Discover extraordinary residences, prestigious addresses and exceptional real estate opportunities.',
   hero_image: null,
+  hero_stats: [
+    { value: '25+', label: 'Years of stewardship' },
+    { value: '40+', label: 'Global destinations' },
+    { value: '100%', label: 'Discreet service' },
+  ],
   social: { instagram: '', linkedin: '', facebook: '', youtube: '' },
   footer_text: 'A private collection of the world’s most distinguished residences, curated with discretion and absolute integrity.',
   footer_note: 'Imperial Royal Real Estate. Crafted for a legacy.',

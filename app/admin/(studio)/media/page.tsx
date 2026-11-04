@@ -22,16 +22,24 @@ export default function AdminMediaPage() {
   const [showcase, setShowcase] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!owner.client) return;
+    const client = owner.client;
+    if (!client) return;
     setLoading(true);
-    const [p, m] = await Promise.all([getOwnerProperties(owner.client), getOwnerMedia(owner.client)]);
+    const [p, m] = await Promise.all([getOwnerProperties(client), getOwnerMedia(client)]);
     setShowcase(p.warning ?? m.warning ?? null);
-    if (p.error) setError(p.error);
-    else { setProperties(p.data ?? []); if (!selected && p.data?.length) setSelected(p.data[0].id); }
-    if (m.error) setError(m.error); else { setMedia(m.data ?? []); setError(null); }
+    if (!p.error) {
+      const rows = p.data ?? [];
+      setProperties(rows);
+      // Functional update: `selected` is read, never captured, so this callback
+      // keeps a stable identity and the effect below needs no suppression.
+      setSelected(prev => (prev && rows.some(row => row.id === prev) ? prev : rows[0]?.id ?? ''));
+    }
+    if (!m.error) setMedia(m.data ?? []);
+    // Both sources report once — a media success must not clear a properties error.
+    setError(p.error ?? m.error ?? null);
     setLoading(false);
-  }, [owner.client, selected, error]);
-  useEffect(() => { void load(); }, [owner.client]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [owner.client]);
+  useEffect(() => { void load(); }, [load]);
 
   const images = media.filter(m => m.kind === 'image');
   const videos = media.filter(m => m.kind === 'video');

@@ -101,7 +101,7 @@ settings are always written to row 1 without `updated_at`, a failed cover-clear 
 cover is set, gallery renumbering writes `0..n-1` in order, and the dashboard reads all seven
 counters (degrading to zeros with a message when the database refuses).
 
-Current totals: **149 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
+Current totals: **168 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
 `tsc --noEmit` and `next build`.
 
 ## 2. Defects fixed in this pass
@@ -151,7 +151,7 @@ that aborts halfway.
 | **Medium** | The root layout applied `alternates.canonical: '/'` to every page, so the static 404 shipped `http://localhost:3000` as its canonical and `og:url` even on a live domain. | Root canonical removed (every real page declares its own); `getSiteUrl()` now resolves `NEXT_PUBLIC_SITE_URL` → request host → `VERCEL_PROJECT_PRODUCTION_URL` → `VERCEL_URL` → localhost, which also covers prerendered pages where no request exists. |
 | **Medium** | `next` was declared as `^15.5.28` — Vercel import resolves whatever satisfies the range, and reports an unpinned-framework warning. No `engines`, no `.nvmrc`, no `vercel.json`. | `next` pinned to `15.5.28`; `engines.node: "22.x"`; `.nvmrc` = `22`; `vercel.json` selects the Next.js preset. |
 | **Low** | `sharp` was a **runtime** dependency although only `scripts/*.mjs` and the brand tests use it — dead weight in every serverless function bundle and a source of install warnings. | Moved to `devDependencies`; Vercel's image optimizer ships its own copy. Lockfile regenerated. |
-| **Low** | No way to confirm a live project's schema matched the application build. | `supabase/verify-schema.sql` — 130 lines, read-only, catalog-only (safe on an empty project): 37 PASS/FAIL rows covering tables, RLS, policy semantics, functions, triggers, buckets, columns, indexes, plus a summary row. Guards the ≤180-line owner constraint in `tests/sql.test.ts`. |
+| **Low** | No way to confirm a live project's schema matched the application build. | `supabase/verify-schema.sql` — 132 lines, read-only, catalog-only (safe on an empty project): 38 PASS/FAIL rows covering tables, RLS, policy semantics, functions, triggers, buckets, columns, indexes, plus a summary row. Guards the ≤180-line owner constraint in `tests/sql.test.ts`. |
 | **Low** | `.vercel` (CLI output) was not ignored. | Added to `.gitignore`. |
 
 ## 2. Verified sound (no change needed)
@@ -226,7 +226,7 @@ at fault — `app/(site)/page.tsx` resolves to `/` and exports a default.
   Two separate issues, both now addressed:
   1. **Schema drift in the connected Supabase project** — `site_settings` predates this build (no
      `id` column). Re-running `supabase/showcase-setup.sql` repairs the table shape; `verify-schema.sql`
-     then reports 37/37. This is the owner's one remaining action.
+     then reports 38/38. This is the owner's one remaining action.
   2. **A raw Postgres message shown to visitors** (fixed in code). Public warnings are now neutral
      prose; the driver text moves to a new `warningDetail` field rendered behind a collapsed
      `<details>Technical detail</details>` for the owner. Owner Studio still gets the full message.
@@ -284,3 +284,20 @@ Now the tab *is* the affordance:
   bookmark land in the right place.
 
 `tests/ui-safety.test.ts` (11 tests) covers both halves: the CSS stack rules and the studio flow.
+
+---
+
+# Pass 6 — six owner-experience defects
+
+Every item was reported from real use, and each is now covered by a test.
+
+| # | Defect | Fix |
+|---|---|---|
+| 1 | The **Inquiries badge said "New" forever** — every page load, whether or not anything was unread (`AdminShell`). | `getNewInquiryCount()` counts `status = 'new'` with `head: true` (no rows transferred); the shell re-reads on every navigation so opening the inbox clears it. Failed counts show nothing rather than a false badge. Shows the number, `99+` above that, with an `aria-label`. |
+| 2 | A **deleted Storage object rendered a broken-image box** in cards and in the lightbox. | `SmartImage` and `Lightbox` gained `onError` state that swaps in the branded emblem (`NoImage`, with the original alt text as an `aria-label` and `data-image-fallback` for diagnostics). No empty rectangles anywhere an image can fail. |
+| 3 | **`getSiteSettings` had no ceiling** — the header and footer await it on every page, so a stalled database froze the site chrome. | 8 s `AbortController` **plus** a racing timer (some platforms never settle an aborted fetch). Timeouts now route into the showcase fallback with `warning`/`warningDetail`, exactly like a schema error. |
+| 4 | The hero figures **25+ / 40+ / 100% were hardcoded** in `Hero.tsx` — unverifiable claims about the client's business. | New `site_settings.hero_stats` JSONB (`{value,label}[]`), edited in **Owner Studio → Website Settings → Homepage hero** (add/remove, up to four, live hints), normalised on read *and* write, rendered by `Hero` (empty list hides the row). `schema.sql`, `showcase-setup.sql`, both `public/sql/` mirrors and `verify-schema.sql` (now 38 checks, 132 lines) are updated; a project that has not migrated still saves everything else and is told why. |
+| 5 | `app/admin/(studio)/media/page.tsx` suppressed its dependency list (`eslint-disable`) over a `selected`/`error` capture. | `load` now reads `selected` through a functional update and reports both sources with `p.error ?? m.error ?? null` (a media success no longer clears a properties error); the effect depends on `[load]` with no suppression. |
+| 6 | `InquiryForm` used fixed ids (`inq-name`…), so a second instance on a page broke every label association. | `useId()` prefix; ids are now unique per instance. |
+
+Verification: `tsc` clean · **168 tests / 14 files** · clean `next build` · smoke **61/61** · SSR audit **401/401** · SQL deploy order **7/7**.

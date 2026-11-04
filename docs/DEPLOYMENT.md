@@ -101,11 +101,11 @@ Open Supabase → **SQL Editor** → paste each file → **Run**.
 
 | # | File | Lines | What it creates |
 |---|---|---|---|
-| 1 | `supabase/schema.sql` | 287 | 5 tables, functions, triggers, RLS policies, grants |
+| 1 | `supabase/schema.sql` | 289 | 5 tables, functions, triggers, RLS policies, grants |
 | 2 | `supabase/storage.sql` | 42 | 3 buckets + 6 storage policies |
 | 3 | `supabase/owner-provisioning.sql` | 39 | promotes one auth user to owner (`is_owner = true`) |
-| 4 | `supabase/showcase-setup.sql` | 1229 | self-healing reset: schema + storage + showcase rows |
-| 5 | `supabase/verify-schema.sql` | 130 | **read-only** checklist — 37 PASS/FAIL rows |
+| 4 | `supabase/showcase-setup.sql` | 1231 | self-healing reset: schema + storage + showcase rows |
+| 5 | `supabase/verify-schema.sql` | 132 | **read-only** checklist — 38 PASS/FAIL rows |
 
 Every file is byte-identical to its `public/sql/` copy (enforced by `tests/sql.test.ts`), so the
 same links are available from the running site at `/sql/<name>.sql`.
@@ -113,7 +113,7 @@ same links are available from the running site at `/sql/<name>.sql`.
 - `showcase-setup.sql` is idempotent: it is safe to re-run, and it repairs a project whose tables
   were created with a different shape.
 - `verify-schema.sql` mutates nothing. Re-run it after any manual change; `999 · summary` reads
-  `37 / 37` when the schema matches this build.
+  `38 / 38` when the schema matches this build.
 - Owner accounts: create the user in **Authentication → Users**, then run
   `owner-provisioning.sql` with that email.
 
@@ -163,6 +163,7 @@ canonical, even before `NEXT_PUBLIC_SITE_URL` is set.
 | Build log: `No Output Directory named "public" found` | Output Directory was overridden during import | set it back to *default*; the Next.js preset owns `.next` |
 | Every route 404s but the build succeeded | Output Directory was set to `.next` | clear it — the Next.js preset consumes `.next` itself |
 | Site loads, every collection is empty | env vars missing or added only to Preview | add both `NEXT_PUBLIC_SUPABASE_*` to **Production** and redeploy |
+| Hero statistics do not save | the project predates the `hero_stats` column | run `supabase/schema.sql` once; the save now succeeds without them and says so before that |
 | Owner Studio shows "read-only filesystem" | expected on serverless | configure via env vars (step 2); the download artifact is an alternative |
 | `next/image` 400 on an external host | host not in `images.remotePatterns` | add it in `next.config.ts` → `remotePatterns` (`domains` is deprecated) |
 | 404 page shows `http://localhost:3000` | a root-level canonical was reintroduced | remove it; `getSiteUrl()` handles the static case via `VERCEL_PROJECT_PRODUCTION_URL` |
