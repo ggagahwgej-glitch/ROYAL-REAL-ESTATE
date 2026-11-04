@@ -1,12 +1,16 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { PropertyMedia } from '@/lib/types';
+import { NoImage } from '@/components/ui/SmartImage';
 
 export function Lightbox({ media, index, onClose, onIndex }: {
   media: PropertyMedia[]; index: number; onClose: () => void; onIndex: (i: number) => void;
 }) {
   const current = media[index];
+  const [failed, setFailed] = useState(false);
+  // A missing object in Storage must not show the browser's broken-image glyph.
+  useEffect(() => { setFailed(false); }, [index, current?.public_url]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -26,10 +30,12 @@ export function Lightbox({ media, index, onClose, onIndex }: {
         <button className="lightbox-nav" style={{ left: 20 }} onClick={() => onIndex((index - 1 + media.length) % media.length)} aria-label="Previous"><ChevronLeft size={22} /></button>
         <button className="lightbox-nav" style={{ right: 20 }} onClick={() => onIndex((index + 1) % media.length)} aria-label="Next"><ChevronRight size={22} /></button>
       </>}
-      {current.kind === 'video'
-        ? <video src={current.public_url} controls autoPlay playsInline style={{ maxWidth: 'min(92vw,1400px)', maxHeight: '80vh' }} />
-        // eslint-disable-next-line @next/next/no-img-element
-        : <img src={current.public_url} alt={current.alt_text ?? 'Property media'} />}
+      {failed
+        ? <div className="lightbox-fallback"><NoImage alt={current.alt_text ?? 'Property media'} /></div>
+        : current.kind === 'video'
+          ? <video src={current.public_url} controls autoPlay playsInline onError={() => setFailed(true)} style={{ maxWidth: 'min(92vw,1400px)', maxHeight: '80vh' }} />
+          // eslint-disable-next-line @next/next/no-img-element
+          : <img src={current.public_url} alt={current.alt_text ?? 'Property media'} onError={() => setFailed(true)} />}
       <p className="lightbox-caption">{current.alt_text ?? 'Residence gallery'} · {index + 1} / {media.length}</p>
     </div>
   );

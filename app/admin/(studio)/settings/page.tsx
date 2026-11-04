@@ -5,9 +5,9 @@ import { Brand } from '@/components/brand/Brand';
 import { Notice } from '@/components/ui/UI';
 import { useOwner } from '@/lib/hooks/useOwner';
 import { invalidateSiteSettingsCache, useSiteSettings } from '@/lib/hooks/useSiteData';
-import { saveSiteSettings } from '@/lib/supabase/queries';
+import { normaliseHeroStats, saveSiteSettings } from '@/lib/supabase/queries';
 import { uploadBrandingAsset } from '@/lib/supabase/storage';
-import type { SiteSettings, Testimonial } from '@/lib/types';
+import type { HeroStat, SiteSettings, Testimonial } from '@/lib/types';
 
 export default function AdminSettingsPage() {
   const owner = useOwner();
@@ -22,7 +22,10 @@ export default function AdminSettingsPage() {
 
   useEffect(() => { setForm(settings); setSocial(settings.social ?? {}); }, [settings]);
   const quotes = form.testimonials ?? [];
+  const stats: HeroStat[] = form.hero_stats ?? [];
   const set = <K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) => setForm(f => ({ ...f, [key]: value }));
+  const setStat = (index: number, patch: Partial<HeroStat>) =>
+    set('hero_stats', stats.map((stat, i) => (i === index ? { ...stat, ...patch } : stat)));
 
   const upload = async (kind: 'logo_url' | 'favicon_url' | 'hero_image', file: File) => {
     if (!owner.client) { setFeedback({ tone: 'error', text: 'Sign in before uploading branding assets.' }); return; }
@@ -46,10 +49,12 @@ export default function AdminSettingsPage() {
         initials: (t.initials ?? '').trim(),
         rating: typeof t.rating === 'number' ? Math.max(1, Math.min(5, Math.round(t.rating))) : undefined,
         ...(t.sample === true ? { sample: true } : {}),
-      })) };
+      })),
+      hero_stats: normaliseHeroStats(stats) };
     const res = await saveSiteSettings(owner.client, payload);
     setBusy(false);
     if (res.error) { setFeedback({ tone: 'error', text: `Settings could not be saved: ${res.error}` }); return; }
+    if (res.warning) { setFeedback({ tone: 'error', text: res.warning }); }
     invalidateSiteSettingsCache();
     setFeedback({ tone: 'success', text: 'Website settings saved. Public pages pick up the changes on their next load.' });
     refresh();
@@ -122,6 +127,28 @@ export default function AdminSettingsPage() {
             <span className="hint">The phrase “Meets” splits the heading into two styled lines.</span></div>
           <div className="field span-2"><label className="label" htmlFor="s-hero-s">Supporting text</label><textarea id="s-hero-s" className="textarea" value={form.hero_subheading ?? ''} onChange={e => set('hero_subheading', e.target.value)} /></div>
           {renderUploadField('hero_image', 'Hero image', 'Wide 16:9 architectural photograph recommended. Leave blank to use the built-in imperial estate image.')}
+          <div className="field span-2">
+            <label className="label">Hero statistics</label>
+            <div className="grid gap-12">
+              {stats.map((stat, index) => (
+                <div key={index} className="flex gap-12 wrap center">
+                  <input className="input" style={{ maxWidth: 120 }} value={stat.value}
+                    onChange={e => setStat(index, { value: e.target.value })}
+                    placeholder="25" aria-label={`Statistic ${index + 1} value`} />
+                  <input className="input" style={{ flex: 1, minWidth: 190 }} value={stat.label}
+                    onChange={e => setStat(index, { label: e.target.value })}
+                    placeholder="Years of stewardship" aria-label={`Statistic ${index + 1} label`} />
+                  <button type="button" className="btn-icon btn-sm btn-ghost" aria-label={`Remove statistic ${index + 1}`}
+                    onClick={() => set('hero_stats', stats.filter((_, i) => i !== index))}><Trash2 size={14} /></button>
+                </div>
+              ))}
+              {stats.length < 4 && (
+                <button type="button" className="btn btn-ghost btn-sm" style={{ justifySelf: 'start' }}
+                  onClick={() => set('hero_stats', [...stats, { value: '', label: '' }])}><Plus size={14} /> Add a statistic</button>
+              )}
+            </div>
+            <span className="hint">Up to four figures shown under the hero heading. These read as claims about your business — keep them factual, or remove the row entirely by deleting every entry.</span>
+          </div>
         </div>
         <div className="mt-24"><a href="/" target="_blank" rel="noopener noreferrer" className="link-gold"><Eye size={14} /> Preview the homepage</a></div>
       </div>}

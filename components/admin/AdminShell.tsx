@@ -1,5 +1,5 @@
 'use client';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -10,6 +10,7 @@ import { Brand } from '@/components/brand/Brand';
 import { OwnerGuard, SetupBanner } from './OwnerGuard';
 import { useOwner } from '@/lib/hooks/useOwner';
 import { useSupabaseConfig } from '@/lib/hooks/useSupabaseConfig';
+import { getNewInquiryCount } from '@/lib/supabase/queries';
 import { cn } from '@/lib/utils';
 
 const NAV = [
@@ -45,6 +46,20 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const owner = useOwner();
   const config = useSupabaseConfig();
+  const [newInquiries, setNewInquiries] = useState(0);
+
+  /* Re-read on every navigation, so opening the inbox clears the badge without
+     a reload. Never invented: a failed count simply shows nothing. */
+  useEffect(() => {
+    const client = owner.client;
+    if (!client) { setNewInquiries(0); return; }
+    let cancelled = false;
+    void (async () => {
+      const res = await getNewInquiryCount(client);
+      if (!cancelled) setNewInquiries(res.error ? 0 : Math.max(0, res.data ?? 0));
+    })();
+    return () => { cancelled = true; };
+  }, [owner.client, pathname]);
   // Bootstrap window: configuration remains reachable only until a shared config is published.
   const allowSetup = pathname === '/admin/configuration' && !config.shared;
   const title = TITLES[pathname] ?? (pathname.startsWith('/admin/properties/') && pathname.endsWith('/edit') ? 'Edit Property' : 'Owner Studio');
@@ -61,7 +76,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
           {group.items.map(({ href, label, Icon }) => (
             <Link key={href} href={href} onClick={() => setOpen(false)}
               className={cn('admin-nav-link', pathname === href && 'active')}>
-              <Icon />{label}{label === 'Inquiries' && <span className="badge badge-gold" style={{ marginLeft: 'auto', padding: '2px 7px' }}>New</span>}
+              <Icon />{label}
+              {label === 'Inquiries' && newInquiries > 0 && (
+                <span className="badge badge-gold" style={{ marginLeft: 'auto', padding: '2px 7px' }}
+                  aria-label={`${newInquiries} unread ${newInquiries === 1 ? 'inquiry' : 'inquiries'}`}>
+                  {newInquiries > 99 ? '99+' : newInquiries}
+                </span>
+              )}
             </Link>
           ))}
         </div>)}

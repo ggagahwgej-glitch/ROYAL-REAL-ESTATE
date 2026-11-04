@@ -11,6 +11,8 @@ export function Hero() {
   const { settings } = useSiteSettings();
   const heading = settings.hero_heading ?? DEFAULT_SETTINGS.hero_heading!;
   const sub = settings.hero_subheading ?? DEFAULT_SETTINGS.hero_subheading!;
+  // Owner-editable figures; an empty list hides the row rather than inventing one.
+  const stats = (settings.hero_stats ?? DEFAULT_SETTINGS.hero_stats).filter(s => s.value.trim() && s.label.trim());
   // Preserve the owner's wording verbatim. Only split at the word "Meets" for
   // the two-tone typographic treatment; the final period is never stripped.
   const match = /^(.*?\bMeets\b)\s+(.+)$/i.exec(heading);
@@ -34,11 +36,11 @@ export function Hero() {
             <Link href="/properties" className="btn btn-gold btn-lg">Explore Properties. <ArrowUpRight size={17} /></Link>
             <Link href="/categories" className="btn btn-outline btn-lg">Discover Our Collection. <Compass size={17} /></Link>
           </div>
-          <div className="stat-row" style={{ maxWidth: 620, animation: 'fadeIn 1.4s .4s ease both' }}>
-            <div><p className="stat-big">25+</p><p className="stat-label">Years of stewardship</p></div>
-            <div><p className="stat-big">40+</p><p className="stat-label">Global destinations</p></div>
-            <div><p className="stat-big">100%</p><p className="stat-label">Discreet service</p></div>
-          </div>
+          {stats.length > 0 && <div className="stat-row" style={{ maxWidth: 620, animation: 'fadeIn 1.4s .4s ease both' }}>
+            {stats.map(stat => <div key={`${stat.value}-${stat.label}`}>
+              <p className="stat-big">{stat.value}</p><p className="stat-label">{stat.label}</p>
+            </div>)}
+          </div>}
         </div>
       </div>
       <div className="hero-badge">

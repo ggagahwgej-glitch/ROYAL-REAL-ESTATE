@@ -3,7 +3,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   Inquiry, InquiryStatus, PagedResult, Property, PropertyFilters, PropertyInput,
-  PropertyMedia, QueryResult, SiteSettings,
+  PropertyMedia, QueryResult, SiteSettings, HeroStat,
 } from '../types';
 import { DEFAULT_SETTINGS, errorMessage, slugify } from '../utils';
 import {
@@ -20,6 +20,21 @@ function SHOWCASE_MEDIA_ALL(): PropertyMedia[] {
 }
 
 const SHOWCASE_DB_NOTE = 'The connected project has no published residences yet, so the labelled showcase catalogue is displayed.';
+
+/* A stalled PostgREST request must never freeze the site chrome: the header and
+   footer read website settings on every page. 8s, then the caller falls back. */
+const SETTINGS_TIMEOUT_MS = 8_000;
+export const SETTINGS_TIMEOUT_MESSAGE =
+  'the request timed out after 8 seconds (the database did not answer)';
+
+function withTimeout<T>(work: PromiseLike<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const guard = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([Promise.resolve(work), guard])
+    .finally(() => { if (timer) clearTimeout(timer); });
+}
 
 export type Client = SupabaseClient;
 
@@ -179,9 +194,35 @@ export async function getDistinctCities(client: Client): Promise<QueryResult<str
   } catch (e) { return fail(e); }
 }
 
+/** Trimmed, de-duplicated, never empty. Anything malformed is dropped. */
+export function normaliseHeroStats(input: unknown): HeroStat[] {
+  if (!Array.isArray(input)) return [];
+  const out: HeroStat[] = [];
+  for (const item of input) {
+    if (!item || typeof item !== 'object') continue;
+    const value = String((item as Record<string, unknown>).value ?? '').trim();
+    const label = String((item as Record<string, unknown>).label ?? '').trim();
+    if (!value || !label) continue;
+    out.push({ value: value.slice(0, 12), label: label.slice(0, 48) });
+    if (out.length === 4) break;
+  }
+  return out;
+}
+
 export async function getSiteSettings(client: Client): Promise<QueryResult<SiteSettings>> {
   try {
-    const { data, error } = await client.from('site_settings').select('*').eq('id', 1).maybeSingle();
+    // Abort the transport AND race a timer: some platforms never resolve a
+    // stalled fetch, so the timer is what actually guarantees the page appears.
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), SETTINGS_TIMEOUT_MS);
+    let data: unknown = null; let error: { message: string } | null = null;
+    try {
+      const query = client.from('site_settings').select('*').eq('id', 1);
+      const abortable = (query as unknown as { abortSignal?: (s: AbortSignal) => typeof query }).abortSignal;
+      const scoped = typeof abortable === 'function' ? abortable.call(query, controller.signal) : query;
+      const result = await withTimeout(scoped.maybeSingle(), SETTINGS_TIMEOUT_MS, SETTINGS_TIMEOUT_MESSAGE);
+      data = result.data; error = result.error;
+    } finally { clearTimeout(abortTimer); }
     // Still render with brand defaults, but never hide the database failure.
     if (error) {
       if (SHOWCASE_ENABLED) return { data: mergeShowcaseSettings({ ...DEFAULT_SETTINGS }), error: null,
@@ -199,10 +240,19 @@ export async function getSiteSettings(client: Client): Promise<QueryResult<SiteS
       testimonials: testimonials.map(t => ({ ...t,
         rating: typeof t.rating === 'number' ? Math.max(1, Math.min(5, Math.round(t.rating))) : undefined,
         sample: t.sample === true ? true : undefined })),
+      hero_stats: normaliseHeroStats(row.hero_stats).length
+        ? normaliseHeroStats(row.hero_stats)
+        : DEFAULT_SETTINGS.hero_stats,
       social: { ...DEFAULT_SETTINGS.social, ...(row.social ?? {}) },
       theme: { ...DEFAULT_SETTINGS.theme, ...(row.theme ?? {}) } };
     return ok(mergeShowcaseSettings(settings));
-  } catch (e) { return { data: { ...DEFAULT_SETTINGS }, error: `Website settings could not be loaded: ${errorMessage(e)}` }; }
+  } catch (e) {
+    const detail = errorMessage(e);
+    if (SHOWCASE_ENABLED) return { data: mergeShowcaseSettings({ ...DEFAULT_SETTINGS }), error: null,
+      warning: 'Curated presentation settings are in use while the website settings are being completed.',
+      warningDetail: `Public website settings could not be read: ${detail}` };
+    return { data: { ...DEFAULT_SETTINGS }, error: `Public website settings could not be read (${detail}). The application schema may not be installed yet.` };
+  }
 }
 
 export interface InquiryInput {
@@ -397,11 +447,30 @@ export async function deleteInquiry(client: Client, id: string): Promise<QueryRe
 
 export async function saveSiteSettings(client: Client, settings: Partial<SiteSettings>): Promise<QueryResult<SiteSettings>> {
   try {
-    const payload = { ...settings, id: 1 };
+    const payload: Partial<SiteSettings> = { ...settings, id: 1 };
     delete (payload as Partial<SiteSettings>).updated_at;
-    const { data, error } = await client.from('site_settings').upsert(payload, { onConflict: 'id' }).select('*').single();
+    if (payload.hero_stats) payload.hero_stats = normaliseHeroStats(payload.hero_stats);
+    let { data, error } = await client.from('site_settings').upsert(payload, { onConflict: 'id' }).select('*').single();
+    // A project that has not run the latest schema lacks hero_stats. Never fail
+    // the whole save for it: persist the rest and say what is missing.
+    if (error && /hero_stats/i.test(error.message)) {
+      const withoutStats = { ...payload };
+      delete withoutStats.hero_stats;
+      const retry = await client.from('site_settings').upsert(withoutStats, { onConflict: 'id' }).select('*').single();
+      data = retry.data; error = retry.error;
+      if (!error) return { data: null, error: null, warning: 'Settings saved without the hero statistics: the database is missing the hero_stats column. Run supabase/schema.sql (or supabase/showcase-setup.sql) once to enable them.' };
+    }
     if (error) return fail(error);
     return ok(data as SiteSettings);
+  } catch (e) { return fail(e); }
+}
+
+/* Sidebar badge: exactly what is still unread, not a decoration. */
+export async function getNewInquiryCount(client: Client): Promise<QueryResult<number>> {
+  try {
+    const { count, error } = await client.from('inquiries').select('id', { count: 'exact', head: true }).eq('status', 'new');
+    if (error) return fail(error);
+    return ok(Number(count ?? 0));
   } catch (e) { return fail(e); }
 }
 

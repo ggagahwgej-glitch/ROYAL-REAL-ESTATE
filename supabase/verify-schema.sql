@@ -68,6 +68,7 @@ with sig as (
     exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'properties'    and column_name = 'slug')         as c_slug,
     exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'properties'    and column_name = 'status')       as c_status,
     exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'site_settings' and column_name = 'testimonials') as c_testimonials,
+    exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'site_settings' and column_name = 'hero_stats')   as c_hero_stats,
     exists (select 1 from pg_index i join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any (i.indkey)
              where i.indrelid = to_regclass('public.properties') and i.indisunique and a.attname = 'slug')          as u_slug,
     exists (select 1 from pg_constraint where conrelid = to_regclass('public.inquiries') and contype = 'c'
@@ -109,8 +110,9 @@ checks as (
   union all select 33, 'columns',  'properties.slug',          s.c_slug,                 'URL-safe identifier'                             from sig s
   union all select 34, 'columns',  'properties.status',        s.c_status,               'draft or published'                              from sig s
   union all select 35, 'columns',  'site_settings.testimonials', s.c_testimonials,       'jsonb array of real quotes'                      from sig s
-  union all select 36, 'indexes',  'properties.slug unique',   s.u_slug,                 'no duplicate URLs'                               from sig s
-  union all select 37, 'indexes',  'inquiries.status check',   s.k_inquiry_status,       'new, read, contacted, resolved'                  from sig s
+  union all select 36, 'columns',  'site_settings.hero_stats',  s.c_hero_stats,           'jsonb array of hero figures'                     from sig s
+  union all select 37, 'indexes',  'properties.slug unique',   s.u_slug,                 'no duplicate URLs'                               from sig s
+  union all select 38, 'indexes',  'inquiries.status check',   s.k_inquiry_status,       'new, read, contacted, resolved'                  from sig s
 )
 select
   n,
