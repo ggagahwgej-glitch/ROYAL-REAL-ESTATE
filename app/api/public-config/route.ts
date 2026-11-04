@@ -9,9 +9,11 @@
    DELETE → owner may clear it.
 
    Writes land in data/public-config.json (a persistent runtime file on
-   a Node/VPS deployment). On read-only serverless filesystems the
-   endpoint returns mode:"download" with the exact artifact to place at
-   public/public-config.json — it never falsely claims global saving.
+   a Node/VPS deployment). Serverless platforms (Vercel, Netlify, …) have a
+   read-only, ephemeral filesystem: there the endpoint SHORT-CIRCUITS and
+   returns mode:"download" with the exact artifact plus the environment
+   variables to set — it never attempts a doomed write and never falsely
+   claims global saving.
 
    Only publishable/anon keys are accepted. No service-role key exists
    anywhere in this application.
@@ -30,7 +32,24 @@ export const dynamic = 'force-dynamic';
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0', 'Pragma': 'no-cache' };
 const RUNTIME_FILE = path.join(process.cwd(), 'data', 'public-config.json');
 
+/* Serverless deployments mount the bundle read-only (EROFS). VERCEL is set by
+   the platform; IMPERIAL_READONLY_FS lets any other host opt into the same,
+   truthful behaviour without waiting for a failed write. */
+const READ_ONLY_FS = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.IMPERIAL_READONLY_FS);
+
+const ENV_INSTRUCTIONS =
+  'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your hosting dashboard ' +
+  '(Vercel → Project → Settings → Environment Variables), then redeploy. Alternatively commit the ' +
+  'artifact below as public/public-config.json.';
+
 function publicPayload(config: SupabaseConfig | null, storage: string, publishedAt: string | null, persistent: boolean, note?: string) {
+  const defaultNote = config
+    ? storage === 'env'
+      ? 'Published through deployment environment variables. Contains a publishable/anon key only. RLS protects all data.'
+      : storage === 'none'
+        ? 'No shared configuration published yet.'
+        : 'Shared public bootstrap configuration. Contains a publishable/anon key only. RLS protects all data.'
+    : 'No shared configuration published yet.';
   return NextResponse.json({
     configured: Boolean(config),
     url: config?.url ?? '',
@@ -38,15 +57,14 @@ function publicPayload(config: SupabaseConfig | null, storage: string, published
     publishedAt,
     storage,
     persistent,
-    note: note ?? (config
-      ? 'Shared public bootstrap configuration. Contains a publishable/anon key only. RLS protects all data.'
-      : 'No shared configuration published yet.'),
+    note: note ?? defaultNote,
+    runtimeWritable: !READ_ONLY_FS,
   }, { headers: NO_STORE });
 }
 
 export async function GET() {
   const info = await getServerConfig();
-  return publicPayload(info.config, info.storage, info.publishedAt, info.storage === 'static-file');
+  return publicPayload(info.config, info.storage, info.publishedAt, !READ_ONLY_FS && info.storage === 'server');
 }
 
 /**
@@ -97,12 +115,21 @@ export async function POST(request: Request) {
   const current = await getServerConfig();
   if (current.config && current.config.url !== config.url) {
     return NextResponse.json({
-      error: `This website is already bound to ${current.config.url}. The shared project URL cannot be repointed from a browser session. Clear the runtime configuration with the existing owner account, or update public/public-config.json in the deployment, before connecting a different project.`,
+      error: `This website is already bound to ${current.config.url}. The shared project URL cannot be repointed from a browser session. Change it where it is set — the deployment environment variables (NEXT_PUBLIC_SUPABASE_URL), data/public-config.json on a writable host, or public/public-config.json in the repository — and redeploy.`,
     }, { status: 403, headers: NO_STORE });
   }
 
   const auth = await authorizeOwner(config, parsed.accessToken ?? '');
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 403, headers: NO_STORE });
+
+  if (READ_ONLY_FS) {
+    return NextResponse.json({
+      ok: false,
+      mode: 'download',
+      message: `This deployment runs on a read-only serverless filesystem, so nothing can be stored at runtime. ${ENV_INSTRUCTIONS}`,
+      artifact,
+    }, { status: 501, headers: NO_STORE });
+  }
 
   try {
     await fs.mkdir(path.dirname(RUNTIME_FILE), { recursive: true });
@@ -136,6 +163,12 @@ export async function DELETE(request: Request) {
   const obj = body as Record<string, unknown>;
   const current = await getServerConfig();
   if (!current.config) return NextResponse.json({ ok: true, message: 'There is no runtime shared configuration to clear.' }, { headers: NO_STORE });
+  if (READ_ONLY_FS) {
+    return NextResponse.json({
+      ok: true,
+      message: 'Nothing is stored at runtime on this deployment. Remove the SUPABASE environment variables (or public/public-config.json) and redeploy to disconnect the project.',
+    }, { headers: NO_STORE });
+  }
   const auth = await authorizeOwner(current.config, typeof obj.accessToken === 'string' ? obj.accessToken : '');
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 403, headers: NO_STORE });
   try {

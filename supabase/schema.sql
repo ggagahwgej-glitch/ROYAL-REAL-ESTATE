@@ -7,14 +7,6 @@
 create extension if not exists pgcrypto;
 
 -- ---------------------------------------------------------------- 1. helpers
-create or replace function public.is_owner()
-returns boolean language sql stable security definer
-set search_path = public, pg_temp as $$
-  select coalesce((select p.is_owner from public.profiles p where p.id = auth.uid()), false);
-$$;
-revoke all on function public.is_owner() from public;
-grant execute on function public.is_owner() to anon, authenticated;
-
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$
 begin new.updated_at = now(); return new; end $$;
@@ -30,6 +22,17 @@ create table if not exists public.profiles (
 );
 comment on column public.profiles.is_owner is
   'SECURITY: only the project administrator can change this in the Supabase SQL Editor. No PostgREST policy permits insert/update/delete of profiles.';
+
+-- is_owner() reads public.profiles, so it is created AFTER the table. A
+-- SQL-language body is analysed at CREATE time; declaring it first fails on a
+-- brand-new project with "relation public.profiles does not exist".
+create or replace function public.is_owner()
+returns boolean language sql stable security definer
+set search_path = public, pg_temp as $$
+  select coalesce((select p.is_owner from public.profiles p where p.id = auth.uid()), false);
+$$;
+revoke all on function public.is_owner() from public;
+grant execute on function public.is_owner() to anon, authenticated;
 
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$

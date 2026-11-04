@@ -101,7 +101,7 @@ settings are always written to row 1 without `updated_at`, a failed cover-clear 
 cover is set, gallery renumbering writes `0..n-1` in order, and the dashboard reads all seven
 counters (degrading to zeros with a message when the database refuses).
 
-Current totals: **107 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
+Current totals: **129 unit tests · 61 smoke checks · 401 SSR checks — all passing**, plus a clean
 `tsc --noEmit` and `next build`.
 
 ## 2. Defects fixed in this pass
@@ -131,3 +131,48 @@ Current totals: **107 unit tests · 61 smoke checks · 401 SSR checks — all pa
 
 No brand asset was redrawn: the approved 3D render remains the only mark, and every existing
 brand-kit weight test still passes.
+
+---
+
+# Pass 3 — Vercel deployment readiness (zero warnings, zero build errors)
+
+Goal: import the repository into Vercel and get a clean build on the first attempt, with no
+import warnings, no missing-asset crash, no build-time filesystem failure, and no database step
+that aborts halfway.
+
+## 1. Defects found and fixed
+
+| Severity | Defect | Fix |
+|---|---|---|
+| **Critical** | `supabase/schema.sql` declared `public.is_owner()` **before** `public.profiles`. A SQL-language body is analysed at `CREATE` time, so the first paste into a brand-new Supabase project aborted with `relation "public.profiles" does not exist` — the deploy stopped on statement 2 of the very first script. | The helper is created immediately after the table it reads, in `schema.sql` and in the inlined copy inside the generated `showcase-setup.sql`. Verified by executing the scripts against a real PostgreSQL engine. |
+| **High** | Nothing ever *executed* the SQL. Earlier passes validated it by parsing only, which is why the ordering bug survived three passes. | `npm run schema:check` boots PostgreSQL 18 in WebAssembly (PGlite), stubs `auth`/`storage`/roles, and runs `schema.sql → storage.sql → verify-schema.sql → showcase-setup.sql` (twice). `7/7 steps passed`; wired into `npm test`. |
+| **High** | A deployed Vercel function has a **read-only** filesystem, yet `POST /api/public-config` attempted `mkdir` + `writeFile`, which fails with `EROFS`. Owner Studio would report a failure for an operation that can never work there. | Route now detects `VERCEL`/`VERCEL_ENV`/`IMPERIAL_READONLY_FS` and short-circuits **before** any write: `501`, `mode: "download"`, the exact artifact and the env vars to set. `DELETE` returns an honest "nothing is stored at runtime" response instead of unlinking a file that cannot exist. |
+| **High** | Environment variables were the **lowest** priority — a committed sample `public/public-config.json` silently overrode whatever the operator configured in the Vercel dashboard. | Precedence is now runtime file → **environment** → committed file. Env wins over the sample, so a dashboard configuration is never ignored. |
+| **Medium** | The root layout applied `alternates.canonical: '/'` to every page, so the static 404 shipped `http://localhost:3000` as its canonical and `og:url` even on a live domain. | Root canonical removed (every real page declares its own); `getSiteUrl()` now resolves `NEXT_PUBLIC_SITE_URL` → request host → `VERCEL_PROJECT_PRODUCTION_URL` → `VERCEL_URL` → localhost, which also covers prerendered pages where no request exists. |
+| **Medium** | `next` was declared as `^15.5.28` — Vercel import resolves whatever satisfies the range, and reports an unpinned-framework warning. No `engines`, no `.nvmrc`, no `vercel.json`. | `next` pinned to `15.5.28`; `engines.node: "22.x"`; `.nvmrc` = `22`; `vercel.json` selects the Next.js preset. |
+| **Low** | `sharp` was a **runtime** dependency although only `scripts/*.mjs` and the brand tests use it — dead weight in every serverless function bundle and a source of install warnings. | Moved to `devDependencies`; Vercel's image optimizer ships its own copy. Lockfile regenerated. |
+| **Low** | No way to confirm a live project's schema matched the application build. | `supabase/verify-schema.sql` — 130 lines, read-only, catalog-only (safe on an empty project): 37 PASS/FAIL rows covering tables, RLS, policy semantics, functions, triggers, buckets, columns, indexes, plus a summary row. Guards the ≤180-line owner constraint in `tests/sql.test.ts`. |
+| **Low** | `.vercel` (CLI output) was not ignored. | Added to `.gitignore`. |
+
+## 2. Verified sound (no change needed)
+
+* `next build` emits **zero warnings and zero errors** from a clean `.next`.
+* All routes build as static or dynamic correctly; `/api/public-config` and the studio are
+  `force-dynamic` as intended, `/properties/[slug]` keeps ISR (`revalidate = 60`).
+* `images.remotePatterns` uses the current API (no deprecated `domains`), no static `output:
+  'export'` that would break API routes, no `distDir` override.
+* No `preinstall` / `postinstall` / `prebuild` hook, so Vercel's install step cannot run anything
+  that needs the repository to already be built, or the network beyond the registry.
+* Security headers stay report-only, and `X-Frame-Options` / `frame-ancestors` remain absent so
+  the hosted preview can still embed the site.
+* Largest tracked file is `public/brand/royal-crest-source.png` at 1.4 MB — far below any Vercel
+  limit, so no Git LFS is required.
+
+## 3. Coverage added
+
+`tests/deployment.test.ts` (16 tests) and `tests/sql.test.ts` (6 tests): manifest pinning,
+engines/`.nvmrc` agreement, framework preset, absence of deprecated image keys and export mode,
+publishable-key-only bootstrap file, ignore rules, canonical-origin resolution for all five
+fallbacks, and the full SQL deploy order executed against a real database engine. Suite total:
+**129 tests in 12 files**, all passing, plus `tsc` clean, `build` clean, `smoke` 61/61 and the SSR
+audit 401/401.

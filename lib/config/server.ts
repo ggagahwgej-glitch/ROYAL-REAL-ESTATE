@@ -1,6 +1,16 @@
 /* Server-only reader for the SHARED public bootstrap configuration.
    Used by generateMetadata(), sitemap.ts and Server Components.
-   It never sees, uses or stores a service-role key. */
+   It never sees, uses or stores a service-role key.
+
+   Precedence (highest first):
+     1. data/public-config.json  — written by the owner through /api/public-config
+                                   on a writable filesystem (VPS / local).
+     2. Deployment environment   — NEXT_PUBLIC_SUPABASE_URL + anon/publishable key.
+                                   This is how a Vercel project is configured.
+     3. public/public-config.json — the committed/sample bootstrap file.
+   Environment variables deliberately beat the committed file: otherwise a
+   sample project shipped in the repository would silently override whatever
+   the operator configured in the hosting dashboard. */
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { SupabaseConfig } from '../types';
@@ -34,16 +44,17 @@ export async function getServerConfig(): Promise<ServerConfigInfo> {
     return { config: runtimeConfig, storage: 'server',
       publishedAt: (runtime as { publishedAt?: string })?.publishedAt ?? null };
   }
+  const envConfig = fromPayload({
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
+  });
+  if (envConfig) return { config: envConfig, storage: 'env', publishedAt: null };
+
   const staticFile = await readJson(path.join(root, 'public', 'public-config.json'));
   const staticConfig = fromPayload(staticFile);
   if (staticConfig) {
     return { config: staticConfig, storage: 'static-file',
       publishedAt: (staticFile as { publishedAt?: string })?.publishedAt ?? null };
   }
-  const envConfig = fromPayload({
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
-  });
-  if (envConfig) return { config: envConfig, storage: 'env', publishedAt: null };
   return { config: null, storage: 'none', publishedAt: null };
 }

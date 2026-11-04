@@ -9,22 +9,27 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "smoke": "node scripts/smoke.mjs",
-    "audit": "node scripts/audit.mjs"
+    "audit": "node scripts/audit.mjs",
+    "schema:check": "node scripts/schema-check.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
     "lucide-react": "^0.468.0",
-    "next": "^15.5.28",
+    "next": "15.5.28",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "sharp": "^0.33.5"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.15",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "potrace": "^2.1.8",
+    "sharp": "^0.33.5",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }

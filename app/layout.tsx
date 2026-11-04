@@ -21,7 +21,6 @@ export async function generateMetadata(): Promise<Metadata> {
   icons: { icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }, { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' }], apple: '/apple-touch-icon.png' },
   manifest: '/manifest.webmanifest',
   robots: { index: true, follow: true },
-  alternates: { canonical: '/' },
   };
 }
 

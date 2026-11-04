@@ -67,7 +67,7 @@ supabase/                     schema.sql · storage.sql · owner-provisioning.sq
 public/
   brand/ sql/ images/         Static brand kit, SQL downloads, original photography
   public-config.json          Shared public bootstrap (pre-connected for this demo)
-tests/ scripts/              107 unit/security/regression tests + 61 smoke + 401 SSR quality checks
+tests/ scripts/              129 unit/security/regression tests + 61 smoke + 401 SSR quality checks
 ```
 
 ### Security model
@@ -157,6 +157,22 @@ Both the public site and the Owner Studio resolve connections from
 
 ---
 
+## Deployment — Vercel
+
+The repository is deployment-ready as-is: `next` is pinned to `15.5.28`, `engines.node` and
+`.nvmrc` both say `22.x`, `vercel.json` selects the Next.js preset, and no build step needs
+network access, a generated file or a writable disk.
+
+1. Import the repository into Vercel and keep every build setting on its default.
+2. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (publishable/anon key only —
+   never a service-role key) to **Production**, **Preview** and **Development**.
+3. Run the Supabase scripts in order: `schema.sql` → `storage.sql` → `owner-provisioning.sql` →
+   `showcase-setup.sql`, then `verify-schema.sql` to confirm 37/37.
+4. `BASE_URL=https://your-domain.com npm run smoke && npm run audit`.
+
+Full detail — resolution order for configuration, read-only-serverless behaviour, schema-drift
+checks and a troubleshooting table — is in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 ## Commands
 
 ```bash
@@ -164,8 +180,9 @@ npm run dev          # development server (0.0.0.0)
 npm run build        # production build
 npm run start        # production server (0.0.0.0)
 npm run typecheck    # strict TypeScript check
-npm run test         # vitest — 107 tests
+npm run test         # vitest — 129 tests (includes the SQL deploy order)
 npm run audit        # 401 SSR quality checks (needs a running server)
+npm run schema:check # executes supabase/*.sql in an offline PostgreSQL engine
 npm run smoke        # requires a running server; BASE_URL=http://localhost:3000
 ```
 
@@ -174,8 +191,10 @@ npm run smoke        # requires a running server; BASE_URL=http://localhost:3000
 Dynamic per-property metadata and Open Graph, canonical URLs, `RealEstateListing` JSON-LD,
 `sitemap.xml` (includes published listings), `robots.txt` disallowing `/admin` and `/api`,
 web manifest, local image optimization with next/image and lazy loading for owner uploads.
-Canonical origins are derived from the incoming request host, so no environment variable is
-needed for SEO (`NEXT_PUBLIC_SITE_URL` is an optional override).
+Canonical origins are derived from the incoming request host, with `NEXT_PUBLIC_SITE_URL` as an
+optional override and `VERCEL_PROJECT_PRODUCTION_URL` / `VERCEL_URL` covering prerendered pages
+such as the static 404 — so no environment variable is required for correct SEO, and a deployed
+site never emits a `localhost` canonical.
 Admin routes carry `noindex, nofollow, nocache`.
 
 ## Client demonstration & one-paste setup

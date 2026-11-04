@@ -6,7 +6,7 @@
 |---|---|
 | `npm run typecheck` | TypeScript strict check across all app, lib and component code |
 | `npm run build` | Production build of all 24 routes, metadata routes, sitemap, robots, manifest |
-| `npm run test` | 107 unit + static security + regression assertions (configuration validation, key-role rejection, browser config persistence/import/export, exact hero copy, genuine-testimonial integrity, filtering, pagination, formatting, RLS schema assertions, no service-role key, no PIN system, **anon-inquiry no-representation insert, Google/OpenStreetMap map normalisation, open-redirect blocking, MIME inference, DB-first media deletion**, keyed gold/crimson client render (transparent master, 2048 px print master), self-contained lockups, responsive transparent raster set, favicon payload budget, manifest icon sizes matching the real files, **stable public slugs on property updates, duplicate-slug messaging, city/locality/country search, land-parcel area display, display-preference normalisation/application, studio write paths: settings row 1, cover clearing order, gallery renumbering, dashboard counters**) |
+| `npm run test` | 129 unit + static security + regression assertions (configuration validation, key-role rejection, browser config persistence/import/export, exact hero copy, genuine-testimonial integrity, filtering, pagination, formatting, RLS schema assertions, no service-role key, no PIN system, **anon-inquiry no-representation insert, Google/OpenStreetMap map normalisation, open-redirect blocking, MIME inference, DB-first media deletion**, keyed gold/crimson client render (transparent master, 2048 px print master), self-contained lockups, responsive transparent raster set, favicon payload budget, manifest icon sizes matching the real files, **stable public slugs on property updates, duplicate-slug messaging, city/locality/country search, land-parcel area display, display-preference normalisation/application, studio write paths: settings row 1, cover clearing order, gallery renumbering, dashboard counters**, deployment contract: pinned Next version + Node engine, Vercel preset, no deprecated image key, no framing headers, canonical-origin fallbacks, publishable-key-only bootstrap file, **SQL deploy order executed in a real PostgreSQL engine (schema → storage → verify → showcase, twice)**, every `supabase/*.sql` byte-identical to `public/sql/`, and the read-only 180-line verification script) |
 | `npm run smoke` | 61 checks: all routes, exact hero copy/button labels, no fabricated testimonials, honest empty state, configuration endpoint rejects secret keys and unauthenticated publishes, DELETE on an unconfigured site does not false-500, downloadable RLS script is present; public `/setup` guide, one-paste SQL download and sitemap showcase slugs; robots/sitemap/manifest/favicon present; brand-kit weight budget (96 px emblem < 25 KB, 192 px < 40 KB, SVG favicon < 20 KB) and the light lockup served with the keyed client render — transparent, never a black-tiled bitmap |
 
 | `npm run audit` | 401 SSR quality checks against a running build (`BASE_URL`, default `localhost:3000`): status codes, `html[lang]`, titles, descriptions, canonical + `og:image`, admin `noindex`, exactly one `<h1>` on public pages, duplicate ids, `alt` text, labelled form controls, named icon buttons, empty links, `target=_blank` safety, JSON-LD parsing, leaked `undefined`/`NaN`, every internal link resolving, and the security headers. Exits non-zero on any failure. |
@@ -52,13 +52,31 @@ rejected and database errors surfaced.
 To test the **real** database path, run `supabase/showcase-setup.sql` in the Supabase SQL Editor
 once, then re-run `/admin/configuration → Run diagnostics` and `supabase/rls-tests.sql`.
 
-## SQL syntax validation
+## SQL execution — offline, in a real PostgreSQL engine
 
-`scripts/validate-sql.py` parses every `supabase/*.sql` file with the real PostgreSQL grammar
-(optional dev dependency: `python3 -m venv .venv && .venv/bin/pip install pglast`). It validates
-both the outer statements and every PL/pgSQL function/`DO` block, including dollar-quoted bodies,
-without connecting to a database. All five scripts currently report `ALL SQL VALID`. Run it before
-pasting any script into the Supabase SQL Editor.
+`npm run schema:check` (also part of `npm test`) boots PostgreSQL 18 compiled to WebAssembly
+(`@electric-sql/pglite`) and recreates the parts of a Supabase project the SQL depends on: the
+`auth` and `storage` schemas, `auth.uid()/role()/jwt()`, the three storage tables and the
+`anon` / `authenticated` / `service_role` roles. It then executes the documented deploy order
+
+```
+supabase/schema.sql → supabase/storage.sql → supabase/verify-schema.sql
+→ supabase/showcase-setup.sql (twice, proving idempotency)
+```
+
+and prints `7/7 steps passed`. Any error, or any FAIL row from `verify-schema.sql`, exits non-zero.
+
+This gate caught a real, first-run failure: `public.is_owner()` was declared **before**
+`public.profiles`, and because a SQL-language body is analysed at `CREATE` time, the very first
+paste into a brand-new Supabase project aborted with `relation "public.profiles" does not exist`.
+The helper is now created after the table, in both `schema.sql` and the inlined copy inside
+`showcase-setup.sql`.
+
+`scripts/validate-sql.py` additionally parses every file with the real PostgreSQL grammar
+(optional: `python3 -m venv .venv && .venv/bin/pip install pglast`).
+
+Only the pgcrypto extension line is skipped in the WASM harness — Supabase provides it, the
+harness does not, and `gen_random_uuid()` is native either way.
 
 ## Not yet verified
 
@@ -66,9 +84,10 @@ No browser automation runtime (Chromium / Playwright) is available in this sandb
 rendering, hydrated form interaction and device-width layout checks were not executed**. A real
 Supabase project URL and publishable key WERE supplied and were checked live (REST, Auth settings,
 anonymous permission denials); the schema mismatch found is documented in `README.md`. Direct
-network egress from the sandbox is blocked, so no SQL could be executed and no live Auth sign-in,
-RLS test, Storage upload, inquiry submission, config publish across visitors or SQL Editor test
-could be run. Route smoke checks verify HTTP
+network egress from the sandbox is blocked. The SQL itself *is* executed — in a real PostgreSQL
+engine, offline (`npm run schema:check`) — but no live Auth sign-in, RLS test against the client's
+project, Storage upload, inquiry submission, config publish across visitors or Supabase SQL
+Editor run could be performed. Route smoke checks verify HTTP
 responses and server-rendered markup; they do not prove hydrated client behavior. The manual
 checklist above and the in-app diagnostics are the remaining acceptance tests.
 

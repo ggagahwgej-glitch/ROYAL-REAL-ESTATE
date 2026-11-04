@@ -1,0 +1,166 @@
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import { readFileSync, existsSync } from 'node:fs';
+import path from 'node:path';
+
+/**
+ * Deployment contract tests.
+ *
+ * These do not exercise the network — they lock the repository into the shape
+ * a zero-warning Vercel import needs, so a future edit cannot silently
+ * reintroduce the classic failures: an unpinned framework, a runtime-only
+ * dependency inflating the serverless bundle, a deprecated image config key,
+ * or a canonical URL baked to localhost.
+ */
+
+const root = process.cwd();
+const read = (rel: string) => readFileSync(path.join(root, rel), 'utf8');
+/** Comments discuss the rules these tests enforce — scan emitted code only. */
+const stripComments = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+const pkg = JSON.parse(read('package.json')) as {
+  engines?: Record<string, string>;
+  scripts?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+
+describe('deployment · package manifest', () => {
+  it('pins the framework version so Vercel never resolves a different Next', () => {
+    expect(pkg.dependencies?.next).toBe('15.5.28');
+    expect(pkg.dependencies?.next).not.toContain('^');
+  });
+
+  it('declares a Node engine and a matching .nvmrc', () => {
+    expect(pkg.engines?.node).toBeTruthy();
+    expect(existsSync(path.join(root, '.nvmrc'))).toBe(true);
+    const nvmrc = read('.nvmrc').trim();
+    expect(nvmrc).toMatch(/^\d+(\.\d+)?(\.\d+)?$/);
+    expect(pkg.engines?.node).toContain(nvmrc.split('.')[0]);
+  });
+
+  it('keeps build scripts free of network calls and generated prerequisites', () => {
+    const build = pkg.scripts?.build ?? '';
+    expect(build).toBe('next build');
+    expect(pkg.scripts?.dev).toContain('next dev');
+    // No postinstall/preinstall step: Vercel runs them before the repo is ready.
+    expect(pkg.scripts?.postinstall).toBeUndefined();
+    expect(pkg.scripts?.preinstall).toBeUndefined();
+    expect(pkg.scripts?.prebuild).toBeUndefined();
+  });
+
+  it('ships image tooling as a dev dependency, not in the serverless bundle', () => {
+    // `sharp` is only used by scripts/*.mjs and the brand tests; Vercel's own
+    // image optimizer provides its own copy at runtime.
+    expect(pkg.dependencies?.sharp).toBeUndefined();
+    expect(pkg.devDependencies?.sharp).toBeTruthy();
+    // Nothing from the test/brand toolchain may leak into runtime dependencies.
+    for (const name of ['potrace', 'vitest', 'typescript']) {
+      expect(pkg.dependencies?.[name]).toBeUndefined();
+    }
+  });
+
+  it('keeps the SQL verification harness out of the runtime dependency graph', () => {
+    expect(pkg.devDependencies?.['@electric-sql/pglite']).toBeTruthy();
+    expect(pkg.dependencies?.['@electric-sql/pglite']).toBeUndefined();
+    expect(pkg.scripts?.['schema:check']).toContain('schema-check.mjs');
+  });
+
+  it('has a Vercel project descriptor that selects the Next.js preset', () => {
+    const vercel = JSON.parse(read('vercel.json')) as { framework?: string };
+    expect(vercel.framework).toBe('nextjs');
+  });
+});
+
+describe('deployment · next.config', () => {
+  const config = stripComments(read('next.config.ts'));
+
+  it('uses the current image allowlist API, not the deprecated `domains` key', () => {
+    expect(config).toContain('remotePatterns');
+    expect(config).not.toMatch(/images:\s*\{[^}]*domains:/);
+  });
+
+  it('never switches to a static export that would break API routes', () => {
+    expect(config).not.toContain("output: 'export'");
+    expect(config).not.toContain('output: "export"');
+  });
+
+  it('keeps framing headers absent so the hosted preview can embed the site', () => {
+    expect(config).not.toContain('X-Frame-Options');
+    expect(config).not.toContain('frame-ancestors');
+  });
+
+  it('leaves the framework preset to Vercel (no custom distDir / output dir)', () => {
+    expect(config).not.toContain('distDir');
+  });
+});
+
+describe('deployment · environment & secrets', () => {
+  it('committed bootstrap config carries no service-role or secret key', () => {
+    const parsed = JSON.parse(read('public/public-config.json')) as Record<string, unknown>;
+    const key = String(parsed.anonKey ?? parsed.publishableKey ?? parsed.anon_key ?? '');
+
+    expect(key.length).toBeGreaterThan(20);
+    // A publishable/anon credential is the only thing allowed here.
+    expect(key.startsWith('sb_secret')).toBe(false);
+    for (const value of Object.values(parsed)) {
+      expect(String(value)).not.toMatch(/service_role/i);
+    }
+    // No field may smuggle a privileged credential alongside the public key.
+    for (const field of ['serviceRoleKey', 'service_role_key', 'secret', 'secretKey']) {
+      expect(parsed[field]).toBeUndefined();
+    }
+  });
+
+  it('ignores env files, the runtime config and the Vercel output dir', () => {
+    const ignore = read('.gitignore');
+    expect(ignore).toMatch(/^\.env\*/m);
+    expect(ignore).toMatch(/^data\/public-config\.json$/m);
+    expect(ignore).toMatch(/^\.vercel$/m);
+  });
+});
+
+describe('deployment · canonical origin', () => {
+  const saved = { ...process.env };
+  afterEach(() => {
+    for (const key of ['NEXT_PUBLIC_SITE_URL', 'VERCEL_URL', 'VERCEL_PROJECT_PRODUCTION_URL']) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+    vi.resetModules();
+  });
+
+  const load = async () => (await import('../lib/config/site-url')).getSiteUrl;
+
+  it('honours an explicit NEXT_PUBLIC_SITE_URL, with or without a scheme', async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://imperial.example/';
+    expect(await (await load())()).toBe('https://imperial.example');
+
+    vi.resetModules();
+    process.env.NEXT_PUBLIC_SITE_URL = 'imperial.example';
+    expect(await (await load())()).toBe('https://imperial.example');
+  });
+
+  it('falls back to the Vercel production domain when prerendering without a request', async () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = 'imperial-royal.vercel.app';
+    process.env.VERCEL_URL = 'imperial-royal-abc123.vercel.app';
+    expect(await (await load())()).toBe('https://imperial-royal.vercel.app');
+  });
+
+  it('uses the per-deployment URL on preview builds, and localhost only locally', async () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
+    process.env.VERCEL_URL = 'imperial-royal-abc123.vercel.app';
+    expect(await (await load())()).toBe('https://imperial-royal-abc123.vercel.app');
+
+    vi.resetModules();
+    delete process.env.VERCEL_URL;
+    expect(await (await load())()).toBe('http://localhost:3000');
+  });
+
+  it('does not bake a canonical URL into the root layout', () => {
+    // A root-level canonical applied "/" to every page, including the 404.
+    const layout = read('app/layout.tsx');
+    expect(layout).not.toMatch(/canonical:\s*['"]\/['"]/);
+  });
+});
