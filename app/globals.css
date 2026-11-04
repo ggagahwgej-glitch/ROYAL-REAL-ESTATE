@@ -228,11 +228,11 @@ hr{border:0;border-top:1px solid var(--line-soft);margin:0}
 .property-card{background:linear-gradient(170deg,var(--surface-2),var(--surface));border:1px solid var(--line-soft);border-radius:var(--r-lg);overflow:hidden;transition:transform .4s var(--ease),border-color .4s,box-shadow .4s;display:flex;flex-direction:column;position:relative}
 .property-card:hover{transform:translateY(-6px);border-color:rgba(198,164,90,.42);box-shadow:var(--shadow)}
 .property-image{position:relative;aspect-ratio:4/3;overflow:hidden;background:var(--navy)}
-.property-image img{width:100%;height:100%;object-fit:cover;transition:transform .8s var(--ease);filter:saturate(.92)}
+.property-image img{width:100%;height:100%;object-fit:cover;transition:transform .8s var(--ease)}
 .property-card:hover .property-image img{transform:scale(1.07)}
 .property-image::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(6,7,11,.55),transparent 55%)}
 .property-tags{position:absolute;left:16px;top:16px;z-index:2;display:flex;gap:8px;flex-wrap:wrap}
-.property-fav{position:absolute;right:14px;top:14px;z-index:2;width:36px;height:36px;border-radius:50%;background:rgba(8,9,13,.6);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--ivory);backdrop-filter:blur(6px)}
+.property-fav{position:absolute;right:14px;top:14px;z-index:2;width:36px;height:36px;border-radius:50%;background:rgba(8,9,13,.82);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--ivory)}
 .property-body{padding:22px 24px 24px;display:flex;flex-direction:column;gap:12px;flex:1}
 .property-location{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);display:flex;align-items:center;gap:7px}
 .property-location svg{width:13px;height:13px}
@@ -533,7 +533,7 @@ body{
 }
 .hero-grain{
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
-  background-size:180px 180px;opacity:.10;mix-blend-mode:overlay;
+  background-size:180px 180px;opacity:.10;
 }
 .hero h1{
   font-size:clamp(3.2rem,7.9vw,7.1rem);line-height:1.0;letter-spacing:-.035em;
@@ -583,7 +583,6 @@ body{
   box-shadow:inset 0 1px 0 rgba(244,240,231,.07);opacity:.6;
 }
 .property-card:hover{box-shadow:0 34px 80px rgba(0,0,0,.6),0 0 0 1px rgba(198,164,90,.22)}
-.property-image img{filter:saturate(.98) contrast(1.04)}
 .property-card:hover .property-image img{transform:scale(1.09)}
 .property-title{font-size:1.5rem;letter-spacing:-.01em}
 
@@ -751,12 +750,11 @@ h1,h2,h3,h4{text-wrap:balance}
 }
 .property-card:hover::before{opacity:1}
 .property-image img{filter:saturate(.99) contrast(1.05) brightness(.99)}
-.property-card:hover .property-image img{filter:saturate(1.04) contrast(1.07) brightness(1.02)}
 .property-image::after{background:linear-gradient(0deg,rgba(6,7,11,.72),rgba(6,7,11,.06) 58%,rgba(6,7,11,.28) 100%)}
 .property-price{padding-top:2px;letter-spacing:-.01em}
 .property-specs{margin-top:auto;color:#B9BEC7}
 .property-specs svg{opacity:.85}
-.property-tags .badge{backdrop-filter:blur(6px)}
+.property-tags .badge{background-color:rgba(8,9,13,.82)}
 
 /* ---- section rhythm: finer ornament, no doubled rules ---- */
 .section-head::after{bottom:-20px;width:64px;height:1px;background:linear-gradient(90deg,var(--gold),transparent)}
@@ -851,3 +849,53 @@ h1,h2,h3,h4{text-wrap:balance}
 .technical-detail { display: inline; margin-left: 6px; }
 .technical-detail > summary { display: inline; cursor: pointer; color: var(--gold); font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; }
 .technical-detail > code { display: block; margin-top: 6px; font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: .74rem; line-height: 1.5; color: var(--ivory-dim, #b9b2a6); overflow-wrap: anywhere; }
+
+/* ============================================================================
+   RENDER SAFETY · v5 — mobile GPU
+   Android Chrome painted coloured static rows across property cards. The cause
+   is a compositing stack, not a colour: a backdrop-blur chip on top of a
+   CSS-filtered <img>, inside an overflow-hidden card that also carries hover
+   transforms. The chip blurs and the stacked filters are gone above; this block
+   covers the two remaining parts — hover state and small-screen cost.
+   Nothing here adds an acceleration hint: fewer composited layers, not more.
+   ============================================================================ */
+
+/* Hover states belong to pointers. A tap used to latch :hover, leaving the card
+   composited mid-transform with an animating filter. */
+@media (hover:none), (pointer:coarse){
+  .property-card:hover{transform:none}
+  .property-card:hover .property-image img,
+  .category-card:hover img,
+  .destination-card:hover img,
+  .media-tile:hover{transform:none}
+}
+
+/* Small screens: no image filters and no backdrop blurs — the expensive half of
+   the stack above, and at this size the visual difference is nil. */
+@media (max-width:900px){
+  .property-image img,
+  .property-card:hover .property-image img{filter:none}
+  .hero-grain{display:none}
+  .hero-badge,
+  .site-header.scrolled,
+  .mobile-overlay,
+  .glass,
+  .admin-topbar,
+  .table th{
+    backdrop-filter:none;
+    -webkit-backdrop-filter:none;
+  }
+  .site-header.scrolled{background:rgba(8,9,13,.97)}
+  .mobile-overlay{background:rgba(5,6,10,.99)}
+  .hero-badge{background:rgba(9,11,16,.74)}
+  .glass{background:rgba(9,11,16,.94)}
+  .property-card{box-shadow:none}
+}
+
+/* ---- Owner Studio: the gallery-unlock checklist ---- */
+.media-checklist{display:grid;gap:10px;margin:4px 0 8px;padding:0;list-style:none}
+.media-checklist li{display:flex;align-items:flex-start;gap:10px;font-size:.86rem;line-height:1.5;color:var(--ivory-dim)}
+.media-checklist li .tick{flex:none;width:18px;height:18px;border-radius:50%;border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
+.media-checklist li.ready .tick{border-color:rgba(198,164,90,.55);color:var(--gold)}
+.media-checklist li.ready{color:var(--ivory)}
+.tab .tab-lock{opacity:.55;margin-left:6px;vertical-align:middle}
